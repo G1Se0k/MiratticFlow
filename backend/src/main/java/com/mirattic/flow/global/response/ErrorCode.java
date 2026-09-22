@@ -10,6 +10,9 @@ public enum ErrorCode {
     // 400
     INVALID_INPUT(HttpStatus.BAD_REQUEST, "입력값이 올바르지 않습니다."),
     UNSUPPORTED_PROVIDER(HttpStatus.BAD_REQUEST, "지원하지 않는 소셜 로그인입니다."),
+    INVITE_INVALID(HttpStatus.BAD_REQUEST, "사용할 수 없는 초대입니다. 만료되었거나 이미 사용된 초대일 수 있습니다."),
+    LAST_OWNER(HttpStatus.BAD_REQUEST, "마지막 관리자는 나가거나 제외될 수 없습니다. 다른 멤버를 관리자로 지정해주세요."),
+    CANNOT_CHANGE_OWN_ROLE(HttpStatus.BAD_REQUEST, "자신의 역할은 변경할 수 없습니다."),
 
     // 401
     LOGIN_FAILED(HttpStatus.UNAUTHORIZED, "이메일 또는 비밀번호가 올바르지 않습니다."),
@@ -21,9 +24,13 @@ public enum ErrorCode {
 
     // 403
     ACCESS_DENIED(HttpStatus.FORBIDDEN, "접근 권한이 없습니다."),
+    NOT_WORKSPACE_MEMBER(HttpStatus.FORBIDDEN, "워크스페이스 멤버가 아닙니다."),
+    NOT_WORKSPACE_OWNER(HttpStatus.FORBIDDEN, "워크스페이스 관리자만 할 수 있습니다."),
 
     // 404
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 사용자입니다."),
+    WORKSPACE_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 워크스페이스입니다."),
+    MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "워크스페이스에 없는 멤버입니다."),
 
     // 409
     EMAIL_DUPLICATED(HttpStatus.CONFLICT, "이미 사용 중인 이메일입니다."),
