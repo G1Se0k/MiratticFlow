@@ -1,0 +1,116 @@
+### 위에서부터 순서대로 실행하세요. 로그인하면 토큰이 자동으로 저장되어 아래 요청에 쓰입니다.
+### WebStorm: 각 요청 왼쪽의 ▶ 버튼 클릭
+
+@host = http://localhost:8080
+
+### 1. 회원가입 → 201
+POST {{host}}/api/auth/signup
+Content-Type: application/json
+
+{
+  "email": "test@mirattic.com",
+  "password": "password123",
+  "name": "장기석"
+}
+
+### 2. 같은 이메일로 다시 가입 → 409 EMAIL_DUPLICATED
+POST {{host}}/api/auth/signup
+Content-Type: application/json
+
+{
+  "email": "test@mirattic.com",
+  "password": "password123",
+  "name": "장기석"
+}
+
+### 3. 잘못된 입력 → 400, 어떤 필드가 왜 틀렸는지 응답에 포함
+POST {{host}}/api/auth/signup
+Content-Type: application/json
+
+{
+  "email": "이메일아님",
+  "password": "123",
+  "name": ""
+}
+
+### 4. 로그인 → 200, 토큰 두 개 (자동 저장됨)
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "test@mirattic.com",
+  "password": "password123"
+}
+
+> {%
+    client.global.set("accessToken", response.body.accessToken);
+    client.global.set("refreshToken", response.body.refreshToken);
+    client.log("accessToken 저장됨");
+%}
+
+### 5. 비밀번호 틀림 → 401 LOGIN_FAILED
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "test@mirattic.com",
+  "password": "틀린비밀번호"
+}
+
+### 6. 없는 이메일 → 401 LOGIN_FAILED (5번과 똑같은 메시지 = 가입 여부를 노출하지 않음)
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "없는사람@mirattic.com",
+  "password": "password123"
+}
+
+### 7. 내 정보 조회 (토큰 O) → 200
+GET {{host}}/api/users/me
+Authorization: Bearer {{accessToken}}
+
+### 8. 내 정보 조회 (토큰 X) → 401 UNAUTHORIZED
+GET {{host}}/api/users/me
+
+### 9. 토큰이 깨진 경우 → 401
+GET {{host}}/api/users/me
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.가짜토큰.서명도가짜
+
+### 10. 재발급 → 200, 새 토큰으로 교체됨 (기존 refresh 는 이 시점에 폐기)
+POST {{host}}/api/auth/reissue
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+> {%
+    client.global.set("oldRefreshToken", client.global.get("refreshToken"));
+    client.global.set("accessToken", response.body.accessToken);
+    client.global.set("refreshToken", response.body.refreshToken);
+%}
+
+### 11. 방금 쓴 refresh 를 또 쓰면 → 401 INVALID_TOKEN (rotation 확인)
+POST {{host}}/api/auth/reissue
+Content-Type: application/json
+
+{
+  "refreshToken": "{{oldRefreshToken}}"
+}
+
+### 12. 로그아웃 → 204
+POST {{host}}/api/auth/logout
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+### 13. 로그아웃한 refresh 로 재발급 → 401 (서버가 진짜로 폐기했는지 확인)
+POST {{host}}/api/auth/reissue
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
