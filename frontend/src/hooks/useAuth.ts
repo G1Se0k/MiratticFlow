@@ -48,7 +48,9 @@ export function useLogin() {
 function useRedirectTarget() {
   const searchParams = useSearchParams();
   const redirect = searchParams.get('redirect');
-  return redirect && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/workspaces';
+  // 슬래시 하나로 시작하는 내부 경로만 허용. 브라우저가 역슬래시를 슬래시로
+  // 바꿔 읽기 때문에 `/\evil.com` 도 `//evil.com` 과 같이 외부로 나간다.
+  return redirect && /^\/(?![/\\])/.test(redirect) ? redirect : '/workspaces';
 }
 
 export function useSignup() {
