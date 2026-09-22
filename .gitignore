@@ -8,3 +8,6 @@
 
 # Playwright MCP 실행 산출물
 .playwright-mcp/
+
+# 구현 기록 (로컬 전용)
+docs/phases/
