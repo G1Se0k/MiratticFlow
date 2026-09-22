@@ -36,7 +36,7 @@ cd frontend && cp .env.local.example .env.local && npm install && npm run dev   
 ## 진행 상황
 
 - [x] Phase 1 — 프로젝트 초기화
-- [ ] Phase 2 — 인증 (JWT)
+- [x] Phase 2 — 인증 (JWT)
 - [ ] Phase 3 — 워크스페이스
 - [ ] Phase 4 — 프로젝트
 - [ ] Phase 5 — 이슈
