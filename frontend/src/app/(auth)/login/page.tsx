@@ -6,6 +6,7 @@ import { Suspense } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/Button';
+import { LogoBlock } from '@/components/ui/Logo';
 import { FormError, FormField } from '@/components/ui/FormField';
 import { useLogin } from '@/hooks/useAuth';
 import { SocialButton } from '@/components/ui/SocialButton';
@@ -23,6 +24,7 @@ function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit((values) => login.mutate(values))} className="flex flex-col gap-4" noValidate>
+      <LogoBlock />
       {searchParams.get('signup') === 'success' && (
         <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
           가입이 완료되었습니다. 로그인해주세요.

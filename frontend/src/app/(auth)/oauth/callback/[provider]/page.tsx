@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState } from 'react';
+import { LogoBlock } from '@/components/ui/Logo';
 import { Spinner } from '@/components/ui/Spinner';
 import { useOAuthLogin } from '@/hooks/useAuth';
 import { consumeState, isOAuthProvider, PROVIDER_LABEL } from '@/lib/auth/oauth';
@@ -47,6 +48,7 @@ function Callback() {
   if (message) {
     return (
       <div className="flex flex-col gap-4 text-center">
+        <LogoBlock />
         <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
           {message}
         </p>

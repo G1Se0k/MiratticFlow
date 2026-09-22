@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/Button';
+import { LogoBlock } from '@/components/ui/Logo';
 import { FormError, FormField } from '@/components/ui/FormField';
 import { useSignup } from '@/hooks/useAuth';
 import { signupSchema, type SignupForm } from '@/lib/validation/auth';
@@ -22,6 +23,7 @@ export default function SignupPage() {
       className="flex flex-col gap-4"
       noValidate
     >
+      <LogoBlock />
       <FormField label="이메일" type="email" autoComplete="email" placeholder="you@example.com"
         error={errors.email?.message} {...register('email')} />
       <FormField label="이름" autoComplete="name" placeholder="홍길동"

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { authApi, type LoginPayload, type SignupPayload } from '@/lib/api/auth';
 import { ApiError } from '@/lib/api/types';
 import { tokens } from '@/lib/auth/tokens';
@@ -16,7 +16,7 @@ export function useMe() {
   return useQuery({
     queryKey: ME_QUERY_KEY,
     queryFn: authApi.getMe,
-    // 토큰이 아예 없으면 요청을 보낼 필요도 없다.
+    // 토큰이 없으면 요청을 보낼 필요도 없다. 서버 렌더 중에는 항상 꺼진다.
     enabled: typeof window !== 'undefined' && tokens.getAccess() !== null,
     retry: (failureCount, error) => {
       // 401/403 은 재시도해도 결과가 같다. 네트워크 오류만 한 번 더 시도한다.
@@ -29,15 +29,26 @@ export function useMe() {
 export function useLogin() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const redirectTo = useRedirectTarget();
 
   return useMutation({
     mutationFn: (payload: LoginPayload) => authApi.login(payload),
     onSuccess: async () => {
       // 토큰이 바뀌었으니 캐시된 내 정보를 버리고 다시 가져온다.
       await queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
-      router.replace('/dashboard');
+      router.replace(redirectTo);
     },
   });
+}
+
+/**
+ * ?redirect= 로 넘어온 경로로 돌려보낸다.
+ * 외부 URL 이 들어오면 그대로 따라가지 않는다 (open redirect 방지).
+ */
+function useRedirectTarget() {
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get('redirect');
+  return redirect && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/workspaces';
 }
 
 export function useSignup() {
@@ -52,13 +63,14 @@ export function useSignup() {
 export function useOAuthLogin() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const redirectTo = useRedirectTarget();
 
   return useMutation({
     mutationFn: ({ provider, code, state }: { provider: string; code: string; state: string | null }) =>
       authApi.oauthLogin(provider, code, state),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
-      router.replace('/dashboard');
+      router.replace(redirectTo);
     },
   });
 }
