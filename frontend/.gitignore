@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# 예시 파일은 커밋한다 (필요한 환경변수를 알려주기 위해)
+!.env.local.example
