@@ -8,6 +8,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/Button';
 import { FormError, FormField } from '@/components/ui/FormField';
 import { useLogin } from '@/hooks/useAuth';
+import { SocialButton } from '@/components/ui/SocialButton';
+import { isConfigured } from '@/lib/auth/oauth';
 import { loginSchema, type LoginForm } from '@/lib/validation/auth';
 
 function LoginForm() {
@@ -38,6 +40,20 @@ function LoginForm() {
       <Button type="submit" disabled={login.isPending}>
         {login.isPending ? '로그인 중...' : '로그인'}
       </Button>
+
+      <div className="flex items-center gap-3 py-1">
+        <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+        <span className="text-xs text-slate-400">또는</span>
+        <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+      </div>
+
+      <SocialButton provider="kakao" disabled={!isConfigured('kakao')} />
+      <SocialButton provider="naver" disabled={!isConfigured('naver')} />
+      {(!isConfigured('kakao') || !isConfigured('naver')) && (
+        <p className="text-center text-xs text-slate-400">
+          소셜 로그인 키가 설정되지 않았습니다 (.env.local)
+        </p>
+      )}
 
       <p className="text-center text-sm text-slate-500">
         계정이 없으신가요?{' '}

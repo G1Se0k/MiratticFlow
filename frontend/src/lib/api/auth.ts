@@ -32,5 +32,12 @@ export const authApi = {
     }
   },
 
+  /** 소셜 로그인. 인가 코드를 백엔드에 넘기면 일반 로그인과 같은 형태로 토큰이 돌아온다. */
+  async oauthLogin(provider: string, code: string, state: string | null) {
+    const response = await api.post<TokenResponse>(`/api/auth/oauth/${provider}`, { code, state }, false);
+    tokens.save(response.accessToken, response.refreshToken);
+    return response;
+  },
+
   getMe: () => api.get<UserResponse>('/api/users/me'),
 };

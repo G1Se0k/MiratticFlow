@@ -49,6 +49,20 @@ export function useSignup() {
   });
 }
 
+export function useOAuthLogin() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ provider, code, state }: { provider: string; code: string; state: string | null }) =>
+      authApi.oauthLogin(provider, code, state),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
+      router.replace('/dashboard');
+    },
+  });
+}
+
 export function useLogout() {
   const router = useRouter();
   const queryClient = useQueryClient();
