@@ -46,3 +46,7 @@ cd frontend && cp .env.local.example .env.local && npm install && npm run dev   
 - [ ] Phase 9 — 대시보드
 - [ ] Phase 10 — 품질 개선
 - [ ] Phase 11 — 배포
+
+## 구현 기록
+
+Phase 별 설계·결정·트러블슈팅은 [docs/phases](docs/phases/README.md) 에 정리되어 있습니다.
