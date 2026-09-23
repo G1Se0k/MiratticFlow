@@ -59,8 +59,15 @@ export default function ProjectDetailPage() {
               보관됨
             </span>
           )}
+          <div className="ml-auto flex gap-2">
+            <Link href={`/projects/${project.id}/chat`}>
+              <Button size="sm" variant="secondary">
+                채팅
+              </Button>
+            </Link>
+          </div>
           {project.canManage && (
-            <div className="ml-auto flex gap-2">
+            <div className="flex gap-2">
               <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>
                 설정
               </Button>
