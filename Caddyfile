@@ -1,0 +1,22 @@
+# Caddy 가 Let's Encrypt 인증서를 자동으로 받고 갱신한다.
+# 인증서 파일을 손으로 만지거나 갱신 cron 을 걸 일이 없다.
+# (Nginx + Certbot 으로도 되지만 설정이 세 배는 길어진다.)
+
+{$DOMAIN} {
+	encode gzip
+
+	# 백엔드 — API 와 WebSocket.
+	# /ws 는 업그레이드 헤더를 그대로 넘겨야 STOMP 연결이 선다.
+	# Caddy 는 reverse_proxy 에서 이걸 알아서 처리한다.
+	handle /api/* {
+		reverse_proxy backend:8080
+	}
+	handle /ws* {
+		reverse_proxy backend:8080
+	}
+
+	# 나머지는 전부 Next.js
+	handle {
+		reverse_proxy frontend:3000
+	}
+}

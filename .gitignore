@@ -1,6 +1,8 @@
 # 환경 변수 (예시 파일만 커밋)
 .env*
 !.env.example
+!.env.local.example
+!.env.prod.example
 
 .idea/
 .DS_Store

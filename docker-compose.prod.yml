@@ -1,0 +1,79 @@
+# 운영 배포. 한 서버에 네 컨테이너를 올린다.
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+#
+# 밖으로 열리는 포트는 Caddy 의 80/443 뿐이다.
+# MySQL 과 백엔드는 컨테이너 네트워크 안에서만 서로 부른다.
+
+# 프로젝트 이름을 못 박는다. 비워 두면 디렉터리 이름으로 정해지는데,
+# 같은 폴더의 개발용 docker-compose.yml 과 이름이 겹쳐 **볼륨을 공유한다**.
+# 그러면 운영 스택이 개발 DB 를 집어 들거나 그 반대가 된다.
+name: mirattic-flow-prod
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 10s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_HOST: mysql
+      DB_NAME: ${DB_NAME}
+      DB_USERNAME: root
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ALLOWED_ORIGINS: https://${DOMAIN}
+      KAKAO_CLIENT_ID: ${KAKAO_CLIENT_ID:-}
+      KAKAO_CLIENT_SECRET: ${KAKAO_CLIENT_SECRET:-}
+      KAKAO_REDIRECT_URI: https://${DOMAIN}/oauth/callback/kakao
+      NAVER_CLIENT_ID: ${NAVER_CLIENT_ID:-}
+      NAVER_CLIENT_SECRET: ${NAVER_CLIENT_SECRET:-}
+      NAVER_REDIRECT_URI: https://${DOMAIN}/oauth/callback/naver
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # 프론트는 브라우저에서 도는 코드라 같은 도메인으로 부른다.
+        # Caddy 가 /api 와 /ws 만 백엔드로 넘긴다 — CORS 자체가 생기지 않는다.
+        NEXT_PUBLIC_API_BASE_URL: https://${DOMAIN}
+        NEXT_PUBLIC_KAKAO_CLIENT_ID: ${KAKAO_CLIENT_ID:-}
+        NEXT_PUBLIC_NAVER_CLIENT_ID: ${NAVER_CLIENT_ID:-}
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data     # 인증서. 지우면 재발급 한도에 걸릴 수 있다
+      - caddy-config:/config
+    depends_on:
+      - frontend
+      - backend
+
+volumes:
+  mysql-data:
+  caddy-data:
+  caddy-config:
