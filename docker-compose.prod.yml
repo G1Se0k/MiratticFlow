@@ -1,8 +1,8 @@
-# 운영 배포. 한 서버에 네 컨테이너를 올린다.
+# 운영 배포. 앱과 DB는 Docker, 공용 Caddy는 호스트에서 실행한다.
 #   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 #
-# 밖으로 열리는 포트는 Caddy 의 80/443 뿐이다.
-# MySQL 과 백엔드는 컨테이너 네트워크 안에서만 서로 부른다.
+# 앱 포트는 호스트 루프백에만 공개한다.
+# 호스트 Caddy가 127.0.0.1:3001 / 127.0.0.1:8080 으로 연결한다.
 
 # 프로젝트 이름을 못 박는다. 비워 두면 디렉터리 이름으로 정해지는데,
 # 같은 폴더의 개발용 docker-compose.yml 과 이름이 겹쳐 **볼륨을 공유한다**.
@@ -25,6 +25,8 @@ services:
 
   backend:
     build: ./backend
+    ports:
+      - "127.0.0.1:8080:8080"
     restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: prod
@@ -45,6 +47,8 @@ services:
         condition: service_healthy
 
   frontend:
+    ports:
+      - "127.0.0.1:3001:3000"
     build:
       context: ./frontend
       args:
@@ -57,23 +61,5 @@ services:
     depends_on:
       - backend
 
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    environment:
-      DOMAIN: ${DOMAIN}
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data     # 인증서. 지우면 재발급 한도에 걸릴 수 있다
-      - caddy-config:/config
-    depends_on:
-      - frontend
-      - backend
-
 volumes:
   mysql-data:
-  caddy-data:
-  caddy-config:

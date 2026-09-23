@@ -40,11 +40,13 @@ cd frontend && cp .env.local.example .env.local && npm install && npm run dev   
 
 - 서버 경로: `/Users/giseok/Documents/MiratticFlow`
 - GitHub Actions 시크릿: `DEPLOY_SSH_KEY` (서버 SSH 접속용 개인 키)
-- 서버 전용 파일: `.env.prod`, `Caddyfile` (Git 추적 제외)
+- 서버 전용 파일: `.env.prod` (Git 추적 제외)
+- 공용 Caddy 설정: `/opt/homebrew/etc/Caddyfile` (호스트에서 별도 관리)
 
-최초 설정 시 `.env.prod.example`과 `Caddyfile.example`을 각각 복사해 설정합니다.
-기존 서버 파일은 덮어쓰지 않습니다. Caddy는 현재 운영 Compose 안에서 실행되므로
-호스트의 80·443 포트를 사용할 수 있어야 합니다.
+최초 설정 시 `.env.prod.example`을 `.env.prod`로 복사해 설정합니다.
+`Caddyfile.example`은 공용 호스트 Caddy에 추가할 도메인 설정 예시입니다.
+Caddy는 Homebrew 서비스로 별도 실행하며, 프론트엔드 `127.0.0.1:3001`과
+백엔드 `127.0.0.1:8080`으로 연결합니다. 앱 배포는 Caddy를 재시작하지 않습니다.
 
 ```bash
 docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
