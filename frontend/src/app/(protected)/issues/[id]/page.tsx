@@ -22,6 +22,7 @@ import {
 } from '@/lib/api/issue';
 import type { ProjectMember } from '@/lib/api/project';
 import { normalize } from '../../projects/[id]/IssueSection';
+import { CommentSection } from './CommentSection';
 
 const STATUSES = Object.keys(ISSUE_STATUS_LABEL) as IssueStatus[];
 const PRIORITIES = Object.keys(ISSUE_PRIORITY_LABEL) as IssuePriority[];
@@ -105,6 +106,8 @@ export default function IssueDetailPage() {
           {issue.description || <span className="text-slate-400">설명이 없습니다.</span>}
         </p>
       </section>
+
+      <CommentSection issueId={issue.id} />
 
       <EditIssueModal
         open={editing}

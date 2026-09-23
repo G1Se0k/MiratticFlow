@@ -1,5 +1,6 @@
 package com.mirattic.flow.project.service;
 
+import com.mirattic.flow.comment.repository.CommentRepository;
 import com.mirattic.flow.global.exception.BusinessException;
 import com.mirattic.flow.global.response.ErrorCode;
 import com.mirattic.flow.issue.repository.IssueRepository;
@@ -32,6 +33,7 @@ public class ProjectService {
     private final ProjectMemberRepository memberRepository;
     private final WorkspaceService workspaceService;
     private final IssueRepository issueRepository;
+    private final CommentRepository commentRepository;
 
     // ---------------------------------------------------------------- 권한 검사
     // 워크스페이스와 같은 방식으로 한 곳에 모은다. Phase 5(이슈)·7(채팅)도 requireAccess 를 거친다.
@@ -118,6 +120,7 @@ public class ProjectService {
     public void delete(Long projectId, Long userId) {
         requireManager(projectId, userId);
         // 자식 먼저 — FK 제약
+        commentRepository.deleteByProjectId(projectId);
         issueRepository.deleteByProjectId(projectId);
         memberRepository.deleteByProjectId(projectId);
         projectRepository.deleteById(projectId);

@@ -1,5 +1,6 @@
 package com.mirattic.flow.issue.service;
 
+import com.mirattic.flow.comment.repository.CommentRepository;
 import com.mirattic.flow.global.exception.BusinessException;
 import com.mirattic.flow.global.response.ErrorCode;
 import com.mirattic.flow.global.response.PageResponse;
@@ -26,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class IssueService {
 
     private final IssueRepository issueRepository;
+    private final CommentRepository commentRepository;
     private final ProjectService projectService;
     private final ProjectMemberRepository projectMemberRepository;
     private final UserRepository userRepository;
@@ -98,13 +100,14 @@ public class IssueService {
         if (!canDelete(issue, userId)) {
             throw new BusinessException(ErrorCode.NOT_ISSUE_OWNER);
         }
+        commentRepository.deleteByIssueId(issueId); // 자식 먼저 — FK 제약
         issueRepository.delete(issue);
     }
 
     // ---------------------------------------------------------------- 공용
 
-    /** 이슈를 볼 수 있는가 = 그 이슈가 속한 프로젝트에 접근할 수 있는가. */
-    private Issue requireReadable(Long issueId, Long userId) {
+    /** 이슈를 볼 수 있는가 = 그 이슈가 속한 프로젝트에 접근할 수 있는가. 댓글도 이 판단을 그대로 쓴다. */
+    public Issue requireReadable(Long issueId, Long userId) {
         Issue issue = issueRepository.findByIdWithDetails(issueId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ISSUE_NOT_FOUND));
         projectService.requireAccess(issue.getProject().getId(), userId);

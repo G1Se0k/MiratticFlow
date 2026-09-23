@@ -29,6 +29,7 @@ public enum ErrorCode {
     NOT_PROJECT_MEMBER(HttpStatus.FORBIDDEN, "프로젝트 참여자가 아닙니다."),
     NOT_PROJECT_MANAGER(HttpStatus.FORBIDDEN, "프로젝트를 만든 사람이나 워크스페이스 관리자만 할 수 있습니다."),
     NOT_ISSUE_OWNER(HttpStatus.FORBIDDEN, "이슈를 등록한 사람이나 프로젝트 관리자만 삭제할 수 있습니다."),
+    NOT_COMMENT_AUTHOR(HttpStatus.FORBIDDEN, "본인이 쓴 댓글만 수정하거나 삭제할 수 있습니다."),
 
     // 404
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 사용자입니다."),
@@ -36,6 +37,7 @@ public enum ErrorCode {
     MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "워크스페이스에 없는 멤버입니다."),
     PROJECT_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 프로젝트입니다."),
     ISSUE_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 이슈입니다."),
+    COMMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 댓글입니다."),
 
     // 409
     EMAIL_DUPLICATED(HttpStatus.CONFLICT, "이미 사용 중인 이메일입니다."),
