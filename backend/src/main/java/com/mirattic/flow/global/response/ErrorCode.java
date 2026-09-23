@@ -13,7 +13,7 @@ public enum ErrorCode {
     INVITE_INVALID(HttpStatus.BAD_REQUEST, "사용할 수 없는 초대입니다. 만료되었거나 이미 사용된 초대일 수 있습니다."),
     LAST_OWNER(HttpStatus.BAD_REQUEST, "마지막 관리자는 나가거나 제외될 수 없습니다. 다른 멤버를 관리자로 지정해주세요."),
     CANNOT_CHANGE_OWN_ROLE(HttpStatus.BAD_REQUEST, "자신의 역할은 변경할 수 없습니다."),
-    LAST_TOPIC(HttpStatus.BAD_REQUEST, "마지막 주제는 삭제할 수 없습니다."),
+    PROJECT_CHAT_FIXED(HttpStatus.BAD_REQUEST, "프로젝트 채팅은 수정하거나 삭제할 수 없습니다."),
 
     // 401
     LOGIN_FAILED(HttpStatus.UNAUTHORIZED, "이메일 또는 비밀번호가 올바르지 않습니다."),

@@ -11,6 +11,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Spinner } from '@/components/ui/Spinner';
 import { useToast } from '@/components/ui/Toast';
 import { useMe } from '@/hooks/useAuth';
+import { ProjectChatDock } from '@/components/chat/ProjectChatDock';
 import { useProject, useProjectMembers, useProjectMutations } from '@/hooks/useProjects';
 import { useMembers, useWorkspace } from '@/hooks/useWorkspaces';
 import type { Project, ProjectInput } from '@/lib/api/project';
@@ -59,15 +60,8 @@ export default function ProjectDetailPage() {
               보관됨
             </span>
           )}
-          <div className="ml-auto flex gap-2">
-            <Link href={`/projects/${project.id}/chat`}>
-              <Button size="sm" variant="secondary">
-                채팅
-              </Button>
-            </Link>
-          </div>
           {project.canManage && (
-            <div className="flex gap-2">
+            <div className="ml-auto flex gap-2">
               <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>
                 설정
               </Button>
@@ -166,6 +160,8 @@ export default function ProjectDetailPage() {
           </Button>
         </div>
       </Modal>
+
+      <ProjectChatDock projectId={projectId} />
     </div>
   );
 }

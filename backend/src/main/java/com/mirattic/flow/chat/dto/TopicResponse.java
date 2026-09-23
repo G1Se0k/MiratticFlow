@@ -7,6 +7,8 @@ import java.time.LocalDateTime;
 public record TopicResponse(
         Long id,
         Long projectId,
+        /** null 이면 프로젝트 채팅. */
+        Long issueId,
         String name,
         String description,
         String createdByName,
@@ -18,6 +20,7 @@ public record TopicResponse(
         return new TopicResponse(
                 topic.getId(),
                 topic.getProject().getId(),
+                topic.isProjectChat() ? null : topic.getIssue().getId(),
                 topic.getName(),
                 topic.getDescription(),
                 topic.getCreatedBy().getName(),

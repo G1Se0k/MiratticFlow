@@ -95,13 +95,12 @@ class ChatStompTest {
         return objectMapper.readTree(body).get("id").asLong();
     }
 
-    /** 워크스페이스 → 프로젝트를 만들고 자동 생성된 "일반" 주제의 id 를 돌려준다. */
+    /** 워크스페이스 → 프로젝트를 만들고 자동 생성된 프로젝트 채팅의 id 를 돌려준다. */
     private long setUpTopic(String token) {
         long workspaceId = id(post("/api/workspaces", new WorkspaceRequest("팀", null), token));
         long projectId = id(post("/api/workspaces/" + workspaceId + "/projects",
                 new ProjectRequest("프로젝트", null, null), token));
-        String topics = get("/api/projects/" + projectId + "/topics", token);
-        return objectMapper.readTree(topics).get(0).get("id").asLong();
+        return id(get("/api/projects/" + projectId + "/chat", token));
     }
 
     private StompSession connect(String token) throws Exception {
@@ -198,8 +197,7 @@ class ChatStompTest {
         long workspaceId = id(post("/api/workspaces", new WorkspaceRequest("팀", null), token));
         long projectId = id(post("/api/workspaces/" + workspaceId + "/projects",
                 new ProjectRequest("프로젝트", null, null), token));
-        long topicId = objectMapper.readTree(get("/api/projects/" + projectId + "/topics", token))
-                .get(0).get("id").asLong();
+        long topicId = id(get("/api/projects/" + projectId + "/chat", token));
 
         StompSession session = connect(token);
         BlockingQueue<ChatMessageResponse> received = subscribe(session, topicId);

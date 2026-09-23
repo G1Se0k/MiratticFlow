@@ -11,17 +11,23 @@ import java.util.Optional;
 
 public interface TopicRepository extends JpaRepository<Topic, Long> {
 
-    @Query("select t from Topic t join fetch t.createdBy where t.project.id = :projectId order by t.id")
-    List<Topic> findAllByProjectIdWithCreator(@Param("projectId") Long projectId);
+    /**
+     * 프로젝트 채팅. 시스템 메시지도 여기로 간다.
+     * 프로젝트를 만들 때 하나만 생기지만, 조회가 데이터 상태 때문에 터지지 않도록
+     * 가장 먼저 만들어진 것 하나로 못박는다.
+     */
+    @Query("select t from Topic t join fetch t.createdBy where t.project.id = :projectId and t.issue is null order by t.id limit 1")
+    Optional<Topic> findProjectChat(@Param("projectId") Long projectId);
+
+    @Query("select t from Topic t join fetch t.createdBy where t.issue.id = :issueId order by t.id")
+    List<Topic> findAllByIssueId(@Param("issueId") Long issueId);
 
     @Query("select t from Topic t join fetch t.project where t.id = :id")
     Optional<Topic> findByIdWithProject(@Param("id") Long id);
 
-    /** 시스템 메시지가 갈 곳 — 프로젝트에서 가장 먼저 만들어진 주제("일반"). */
-    @Query("select t from Topic t where t.project.id = :projectId order by t.id limit 1")
-    Optional<Topic> findFirstByProjectId(@Param("projectId") Long projectId);
-
-    long countByProjectId(Long projectId);
+    @Modifying
+    @Query("delete from Topic t where t.issue.id = :issueId")
+    void deleteByIssueId(@Param("issueId") Long issueId);
 
     @Modifying
     @Query("delete from Topic t where t.project.id = :projectId")

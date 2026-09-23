@@ -3,6 +3,8 @@ import { api } from './client';
 export interface Topic {
   id: number;
   projectId: number;
+  /** null 이면 프로젝트 채팅. */
+  issueId: number | null;
   name: string;
   description: string | null;
   createdByName: string;
@@ -24,9 +26,12 @@ export interface ChatMessage {
 }
 
 export const chatApi = {
-  topics: (projectId: number) => api.get<Topic[]>(`/api/projects/${projectId}/topics`),
-  createTopic: (projectId: number, body: { name: string; description?: string }) =>
-    api.post<Topic>(`/api/projects/${projectId}/topics`, body),
+  /** 프로젝트 채팅은 프로젝트마다 하나 고정이라 단건이다. */
+  projectChat: (projectId: number) => api.get<Topic>(`/api/projects/${projectId}/chat`),
+
+  topics: (issueId: number) => api.get<Topic[]>(`/api/issues/${issueId}/topics`),
+  createTopic: (issueId: number, body: { name: string; description?: string }) =>
+    api.post<Topic>(`/api/issues/${issueId}/topics`, body),
   updateTopic: (id: number, body: { name: string; description?: string }) =>
     api.patch<Topic>(`/api/topics/${id}`, body),
   removeTopic: (id: number) => api.delete<void>(`/api/topics/${id}`),

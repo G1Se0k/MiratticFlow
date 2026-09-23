@@ -90,7 +90,7 @@ public class ProjectService {
         // 만든 사람은 바로 참여자가 된다. 그래야 이슈 담당자로 지정될 수 있다.
         memberRepository.save(ProjectMember.join(project, user));
         // 빈 채팅 화면을 보여주지 않기 위해 기본 주제를 하나 만들어 둔다.
-        topicRepository.save(Topic.create(project, "일반", "프로젝트 전반에 대한 이야기", user));
+        topicRepository.save(Topic.projectChat(project, user));
 
         return ProjectResponse.of(project, true);
     }

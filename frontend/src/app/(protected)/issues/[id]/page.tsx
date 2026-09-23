@@ -10,6 +10,8 @@ import { Modal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
 import { Spinner } from '@/components/ui/Spinner';
 import { useToast } from '@/components/ui/Toast';
+import { ChatPanel } from '@/components/chat/ChatPanel';
+import { ProjectChatDock } from '@/components/chat/ProjectChatDock';
 import { useIssue, useIssueMutations } from '@/hooks/useIssues';
 import { useProject, useProjectMembers } from '@/hooks/useProjects';
 import {
@@ -20,9 +22,11 @@ import {
   type IssuePriority,
   type IssueStatus,
 } from '@/lib/api/issue';
+import type { Topic } from '@/lib/api/chat';
 import type { ProjectMember } from '@/lib/api/project';
 import { normalize } from '../../projects/[id]/IssueSection';
 import { CommentSection } from './CommentSection';
+import { TopicSection } from './TopicSection';
 
 const STATUSES = Object.keys(ISSUE_STATUS_LABEL) as IssueStatus[];
 const PRIORITIES = Object.keys(ISSUE_PRIORITY_LABEL) as IssuePriority[];
@@ -38,6 +42,8 @@ export default function IssueDetailPage() {
   const { changeStatus, remove } = useIssueMutations(issueId, issue?.projectId ?? 0);
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // 주제를 눌러도 페이지를 떠나지 않는다. 오른쪽 창만 열린다.
+  const [openTopic, setOpenTopic] = useState<Topic | null>(null);
 
   if (isPending) return <Spinner />;
   if (isError || !issue) {
@@ -52,7 +58,8 @@ export default function IssueDetailPage() {
   }
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6 lg:flex-row">
+      <div className="flex min-w-0 flex-1 flex-col gap-8">
       <header className="flex flex-col gap-2">
         <Link
           href={`/projects/${issue.projectId}`}
@@ -107,6 +114,8 @@ export default function IssueDetailPage() {
         </p>
       </section>
 
+      <TopicSection issueId={issue.id} openTopicId={openTopic?.id ?? null} onOpen={setOpenTopic} />
+
       <CommentSection issueId={issue.id} />
 
       <EditIssueModal
@@ -142,6 +151,20 @@ export default function IssueDetailPage() {
           </Button>
         </div>
       </Modal>
+      </div>
+
+      {openTopic && (
+        <ChatPanel
+          key={openTopic.id}
+          topicId={openTopic.id}
+          title={`# ${openTopic.name}`}
+          subtitle={openTopic.description}
+          onClose={() => setOpenTopic(null)}
+          className="h-[32rem] w-full shrink-0 lg:sticky lg:top-20 lg:h-[calc(100dvh-8rem)] lg:w-80"
+        />
+      )}
+
+      <ProjectChatDock projectId={issue.projectId} />
     </div>
   );
 }

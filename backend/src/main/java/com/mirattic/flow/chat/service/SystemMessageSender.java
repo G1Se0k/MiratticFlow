@@ -27,7 +27,7 @@ public class SystemMessageSender {
     private final SimpMessagingTemplate messagingTemplate;
 
     /**
-     * 프로젝트의 첫 주제("일반")에 남긴다.
+     * 프로젝트 채팅에 남긴다.
      *
      * ponytail: 호출한 쪽 트랜잭션 안에서 바로 브로드캐스트한다.
      * 그 트랜잭션이 뒤에 롤백되면 DB 에는 남지 않는데 화면에는 이미 떠 있다.
@@ -36,7 +36,7 @@ public class SystemMessageSender {
      */
     @Transactional
     public void send(Long projectId, String content) {
-        topicRepository.findFirstByProjectId(projectId).ifPresent(topic -> broadcast(topic, content));
+        topicRepository.findProjectChat(projectId).ifPresent(topic -> broadcast(topic, content));
     }
 
     private void broadcast(Topic topic, String content) {

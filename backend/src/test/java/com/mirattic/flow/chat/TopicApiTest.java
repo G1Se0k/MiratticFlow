@@ -71,10 +71,15 @@ class TopicApiTest {
                 .andReturn().getResponse().getContentAsString());
     }
 
-    private long defaultTopicId(String token, long projectId) throws Exception {
-        String body = authed(get("/api/projects/{id}/topics", projectId), token)
-                .andReturn().getResponse().getContentAsString();
-        return objectMapper.readTree(body).get(0).get("id").asLong();
+    private long projectChatId(String token, long projectId) throws Exception {
+        return id(authed(get("/api/projects/{id}/chat", projectId), token)
+                .andReturn().getResponse().getContentAsString());
+    }
+
+    private long createIssue(String token, long projectId, String title) throws Exception {
+        return id(authed(post("/api/projects/{id}/issues", projectId).contentType(MediaType.APPLICATION_JSON)
+                .content(json(new IssueRequest(title, null, null, null, null, null))), token)
+                .andReturn().getResponse().getContentAsString());
     }
 
     private String addProjectMember(String ownerToken, long projectId) throws Exception {
@@ -96,16 +101,16 @@ class TopicApiTest {
     // ----------------------------------------------------------------
 
     @Test
-    @DisplayName("프로젝트를 만들면 '일반' 주제가 자동으로 생긴다")
-    void defaultTopicIsCreated() throws Exception {
+    @DisplayName("프로젝트를 만들면 프로젝트 채팅이 하나 생기고, 지울 수 없다")
+    void projectChatIsCreated() throws Exception {
         String token = newUserToken();
         long projectId = setUpProject(token);
 
-        authed(get("/api/projects/{id}/topics", projectId), token)
+        authed(get("/api/projects/{id}/chat", projectId), token)
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].name").value("일반"))
-                .andExpect(jsonPath("$[0].canManage").value(true));
+                .andExpect(jsonPath("$.name").value("프로젝트 채팅"))
+                .andExpect(jsonPath("$.issueId").doesNotExist())
+                .andExpect(jsonPath("$.canManage").value(false));
     }
 
     @Test
@@ -115,7 +120,8 @@ class TopicApiTest {
         long projectId = setUpProject(ownerToken);
         String memberToken = addProjectMember(ownerToken, projectId);
 
-        long topicId = id(authed(post("/api/projects/{id}/topics", projectId)
+        long issueId = createIssue(ownerToken, projectId, "로그인 오류");
+        long topicId = id(authed(post("/api/issues/{id}/topics", issueId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(new TopicRequest("배포", "릴리스 일정"))), memberToken)
                 .andExpect(status().isCreated())
@@ -136,23 +142,38 @@ class TopicApiTest {
     }
 
     @Test
-    @DisplayName("마지막 주제는 삭제할 수 없다")
-    void cannotDeleteLastTopic() throws Exception {
+    @DisplayName("프로젝트 채팅은 삭제할 수 없고, 이슈 주제는 삭제된다")
+    void cannotDeleteProjectChat() throws Exception {
         String token = newUserToken();
         long projectId = setUpProject(token);
-        long generalId = defaultTopicId(token, projectId);
 
-        authed(delete("/api/topics/{id}", generalId), token)
+        authed(delete("/api/topics/{id}", projectChatId(token, projectId)), token)
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("LAST_TOPIC"));
+                .andExpect(jsonPath("$.code").value("PROJECT_CHAT_FIXED"));
 
-        long extraId = id(authed(post("/api/projects/{id}/topics", projectId)
+        long issueId = createIssue(token, projectId, "이슈");
+        long topicId = id(authed(post("/api/issues/{id}/topics", issueId)
                 .contentType(MediaType.APPLICATION_JSON).content(json(new TopicRequest("배포", null))), token)
                 .andReturn().getResponse().getContentAsString());
 
-        authed(delete("/api/topics/{id}", extraId), token).andExpect(status().isNoContent());
-        authed(get("/api/projects/{id}/topics", projectId), token)
-                .andExpect(jsonPath("$.length()").value(1));
+        authed(delete("/api/topics/{id}", topicId), token).andExpect(status().isNoContent());
+        authed(get("/api/issues/{id}/topics", issueId), token)
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    @DisplayName("이슈를 삭제하면 그 안의 주제와 메시지도 함께 사라진다")
+    void deletingIssueRemovesItsTopics() throws Exception {
+        String token = newUserToken();
+        long projectId = setUpProject(token);
+        long issueId = createIssue(token, projectId, "이슈");
+        long topicId = id(authed(post("/api/issues/{id}/topics", issueId)
+                .contentType(MediaType.APPLICATION_JSON).content(json(new TopicRequest("배포", null))), token)
+                .andReturn().getResponse().getContentAsString());
+
+        authed(delete("/api/issues/{id}", issueId), token).andExpect(status().isNoContent());
+        authed(get("/api/topics/{id}/messages", topicId), token)
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -160,10 +181,10 @@ class TopicApiTest {
     void outsiderIsBlocked() throws Exception {
         String ownerToken = newUserToken();
         long projectId = setUpProject(ownerToken);
-        long topicId = defaultTopicId(ownerToken, projectId);
+        long topicId = projectChatId(ownerToken, projectId);
         String outsider = newUserToken();
 
-        authed(get("/api/projects/{id}/topics", projectId), outsider)
+        authed(get("/api/projects/{id}/chat", projectId), outsider)
                 .andExpect(status().isForbidden());
         authed(get("/api/topics/{id}/messages", topicId), outsider)
                 .andExpect(status().isForbidden())
@@ -171,16 +192,13 @@ class TopicApiTest {
     }
 
     @Test
-    @DisplayName("이슈 등록과 상태 변경이 기본 주제에 시스템 메시지로 남는다")
+    @DisplayName("이슈 등록과 상태 변경이 프로젝트 채팅에 시스템 메시지로 남는다")
     void systemMessagesAreRecorded() throws Exception {
         String token = newUserToken();
         long projectId = setUpProject(token);
-        long topicId = defaultTopicId(token, projectId);
+        long topicId = projectChatId(token, projectId);
 
-        long issueId = id(authed(post("/api/projects/{id}/issues", projectId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json(new IssueRequest("로그인 오류", null, null, null, null, null))), token)
-                .andReturn().getResponse().getContentAsString());
+        long issueId = createIssue(token, projectId, "로그인 오류");
 
         authed(patch("/api/issues/{id}/status", issueId).contentType(MediaType.APPLICATION_JSON)
                 .content(json(new IssueStatusRequest(IssueStatus.IN_PROGRESS))), token)
@@ -200,11 +218,8 @@ class TopicApiTest {
     void noMessageWhenStatusUnchanged() throws Exception {
         String token = newUserToken();
         long projectId = setUpProject(token);
-        long topicId = defaultTopicId(token, projectId);
-        long issueId = id(authed(post("/api/projects/{id}/issues", projectId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json(new IssueRequest("이슈", null, null, null, null, null))), token)
-                .andReturn().getResponse().getContentAsString());
+        long topicId = projectChatId(token, projectId);
+        long issueId = createIssue(token, projectId, "이슈");
 
         authed(patch("/api/issues/{id}/status", issueId).contentType(MediaType.APPLICATION_JSON)
                 .content(json(new IssueStatusRequest(IssueStatus.TODO))), token)

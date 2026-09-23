@@ -6,24 +6,33 @@ import { chatApi, type ChatMessage } from '@/lib/api/chat';
 import { createChatClient, type ConnectionState } from '@/lib/chat/stompClient';
 
 export const chatKeys = {
-  topics: (projectId: number) => ['projects', projectId, 'topics'] as const,
+  projectChat: (projectId: number) => ['projects', projectId, 'chat'] as const,
+  topics: (issueId: number) => ['issues', issueId, 'topics'] as const,
   messages: (topicId: number) => ['topics', topicId, 'messages'] as const,
 };
 
-export const useTopics = (projectId: number) =>
+/** 프로젝트 채팅. 프로젝트를 만들 때 함께 생기므로 항상 하나 있다. */
+export const useProjectChat = (projectId: number) =>
   useQuery({
-    queryKey: chatKeys.topics(projectId),
-    queryFn: () => chatApi.topics(projectId),
+    queryKey: chatKeys.projectChat(projectId),
+    queryFn: () => chatApi.projectChat(projectId),
     enabled: projectId > 0,
   });
 
-export function useTopicMutations(projectId: number) {
+export const useTopics = (issueId: number) =>
+  useQuery({
+    queryKey: chatKeys.topics(issueId),
+    queryFn: () => chatApi.topics(issueId),
+    enabled: issueId > 0,
+  });
+
+export function useTopicMutations(issueId: number) {
   const queryClient = useQueryClient();
-  const refresh = () => queryClient.invalidateQueries({ queryKey: chatKeys.topics(projectId) });
+  const refresh = () => queryClient.invalidateQueries({ queryKey: chatKeys.topics(issueId) });
 
   return {
     create: useMutation({
-      mutationFn: (body: { name: string; description?: string }) => chatApi.createTopic(projectId, body),
+      mutationFn: (body: { name: string; description?: string }) => chatApi.createTopic(issueId, body),
       onSuccess: refresh,
     }),
     update: useMutation({

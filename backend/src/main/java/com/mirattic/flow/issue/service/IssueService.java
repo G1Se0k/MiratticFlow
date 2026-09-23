@@ -1,5 +1,7 @@
 package com.mirattic.flow.issue.service;
 
+import com.mirattic.flow.chat.repository.ChatMessageRepository;
+import com.mirattic.flow.chat.repository.TopicRepository;
 import com.mirattic.flow.chat.service.SystemMessageSender;
 import com.mirattic.flow.comment.repository.CommentRepository;
 import com.mirattic.flow.global.exception.BusinessException;
@@ -29,6 +31,8 @@ public class IssueService {
 
     private final IssueRepository issueRepository;
     private final CommentRepository commentRepository;
+    private final TopicRepository topicRepository;
+    private final ChatMessageRepository chatMessageRepository;
     private final SystemMessageSender systemMessageSender;
     private final ProjectService projectService;
     private final ProjectMemberRepository projectMemberRepository;
@@ -118,7 +122,10 @@ public class IssueService {
         if (!canDelete(issue, userId)) {
             throw new BusinessException(ErrorCode.NOT_ISSUE_OWNER);
         }
-        commentRepository.deleteByIssueId(issueId); // 자식 먼저 — FK 제약
+        // 자식 먼저 — FK 제약. 파생 삭제는 커밋 시점에 순서가 정해지므로 벌크 쿼리로 직접 보낸다.
+        chatMessageRepository.deleteByIssueId(issueId);
+        topicRepository.deleteByIssueId(issueId);
+        commentRepository.deleteByIssueId(issueId);
         issueRepository.delete(issue);
     }
 

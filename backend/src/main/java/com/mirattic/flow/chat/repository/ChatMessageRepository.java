@@ -24,6 +24,10 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
             order by m.id desc""")
     List<ChatMessage> findPage(@Param("topicId") Long topicId, @Param("before") Long before, Limit limit);
 
+    @Modifying(clearAutomatically = true)
+    @Query("delete from ChatMessage m where m.topic.issue.id = :issueId")
+    void deleteByIssueId(@Param("issueId") Long issueId);
+
     @Modifying
     @Query("delete from ChatMessage m where m.topic.id = :topicId")
     void deleteByTopicId(@Param("topicId") Long topicId);

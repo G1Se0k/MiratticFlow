@@ -21,16 +21,22 @@ public class TopicController {
     private final TopicService topicService;
     private final ChatService chatService;
 
-    @GetMapping("/api/projects/{projectId}/topics")
-    public List<TopicResponse> findAll(@AuthenticationPrincipal AuthUser authUser, @PathVariable Long projectId) {
-        return topicService.findAll(projectId, authUser.id());
+    /** 프로젝트 채팅. 프로젝트마다 하나 고정이라 목록이 아니라 단건이다. */
+    @GetMapping("/api/projects/{projectId}/chat")
+    public TopicResponse projectChat(@AuthenticationPrincipal AuthUser authUser, @PathVariable Long projectId) {
+        return topicService.findProjectChat(projectId, authUser.id());
     }
 
-    @PostMapping("/api/projects/{projectId}/topics")
+    @GetMapping("/api/issues/{issueId}/topics")
+    public List<TopicResponse> findAll(@AuthenticationPrincipal AuthUser authUser, @PathVariable Long issueId) {
+        return topicService.findAllByIssue(issueId, authUser.id());
+    }
+
+    @PostMapping("/api/issues/{issueId}/topics")
     @ResponseStatus(HttpStatus.CREATED)
-    public TopicResponse create(@AuthenticationPrincipal AuthUser authUser, @PathVariable Long projectId,
+    public TopicResponse create(@AuthenticationPrincipal AuthUser authUser, @PathVariable Long issueId,
                                 @Valid @RequestBody TopicRequest request) {
-        return topicService.create(projectId, authUser.id(), request);
+        return topicService.create(issueId, authUser.id(), request);
     }
 
     @PatchMapping("/api/topics/{topicId}")

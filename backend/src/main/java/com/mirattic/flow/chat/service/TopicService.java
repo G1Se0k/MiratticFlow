@@ -7,7 +7,8 @@ import com.mirattic.flow.chat.repository.ChatMessageRepository;
 import com.mirattic.flow.chat.repository.TopicRepository;
 import com.mirattic.flow.global.exception.BusinessException;
 import com.mirattic.flow.global.response.ErrorCode;
-import com.mirattic.flow.project.entity.Project;
+import com.mirattic.flow.issue.entity.Issue;
+import com.mirattic.flow.issue.service.IssueService;
 import com.mirattic.flow.project.service.ProjectService;
 import com.mirattic.flow.user.entity.User;
 import com.mirattic.flow.user.repository.UserRepository;
@@ -24,6 +25,7 @@ public class TopicService {
 
     private final TopicRepository topicRepository;
     private final ChatMessageRepository messageRepository;
+    private final IssueService issueService;
     private final ProjectService projectService;
     private final UserRepository userRepository;
 
@@ -38,18 +40,26 @@ public class TopicService {
         return topic;
     }
 
-    public List<TopicResponse> findAll(Long projectId, Long userId) {
+    /** 프로젝트 채팅 하나. 프로젝트를 만들 때 같이 생기므로 없을 수 없다. */
+    public TopicResponse findProjectChat(Long projectId, Long userId) {
         projectService.requireAccess(projectId, userId);
-        return topicRepository.findAllByProjectIdWithCreator(projectId).stream()
+        Topic topic = topicRepository.findProjectChat(projectId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.TOPIC_NOT_FOUND));
+        return TopicResponse.of(topic, false); // 프로젝트 채팅은 누구도 지울 수 없다
+    }
+
+    public List<TopicResponse> findAllByIssue(Long issueId, Long userId) {
+        issueService.requireReadable(issueId, userId);
+        return topicRepository.findAllByIssueId(issueId).stream()
                 .map(topic -> TopicResponse.of(topic, canManage(topic, userId)))
                 .toList();
     }
 
     @Transactional
-    public TopicResponse create(Long projectId, Long userId, TopicRequest request) {
-        Project project = projectService.requireAccess(projectId, userId);
+    public TopicResponse create(Long issueId, Long userId, TopicRequest request) {
+        Issue issue = issueService.requireReadable(issueId, userId);
         Topic topic = topicRepository.save(
-                Topic.create(project, request.name(), request.description(), findUser(userId)));
+                Topic.forIssue(issue, request.name(), request.description(), findUser(userId)));
         return TopicResponse.of(topic, true);
     }
 
@@ -63,16 +73,16 @@ public class TopicService {
     @Transactional
     public void delete(Long topicId, Long userId) {
         Topic topic = requireManager(topicId, userId);
-        // 주제가 하나도 없으면 시스템 메시지가 갈 곳이 사라진다.
-        if (topicRepository.countByProjectId(topic.getProject().getId()) <= 1) {
-            throw new BusinessException(ErrorCode.LAST_TOPIC);
-        }
         messageRepository.deleteByTopicId(topicId); // 자식 먼저 — FK 제약
         topicRepository.delete(topic);
     }
 
     private Topic requireManager(Long topicId, Long userId) {
         Topic topic = requireAccess(topicId, userId);
+        // 프로젝트 채팅은 시스템 메시지가 가는 곳이라 이름 변경도 삭제도 막는다.
+        if (topic.isProjectChat()) {
+            throw new BusinessException(ErrorCode.PROJECT_CHAT_FIXED);
+        }
         if (!canManage(topic, userId)) {
             throw new BusinessException(ErrorCode.NOT_TOPIC_MANAGER);
         }
@@ -80,7 +90,9 @@ public class TopicService {
     }
 
     private boolean canManage(Topic topic, Long userId) {
-        return topic.isCreatedBy(userId) || projectService.canManage(topic.getProject(), userId);
+        return !topic.isProjectChat()
+                && (topic.isCreatedBy(userId)
+                || projectService.canManage(topic.getProject(), userId));
     }
 
     private User findUser(Long userId) {
