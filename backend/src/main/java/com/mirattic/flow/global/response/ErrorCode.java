@@ -26,15 +26,19 @@ public enum ErrorCode {
     ACCESS_DENIED(HttpStatus.FORBIDDEN, "접근 권한이 없습니다."),
     NOT_WORKSPACE_MEMBER(HttpStatus.FORBIDDEN, "워크스페이스 멤버가 아닙니다."),
     NOT_WORKSPACE_OWNER(HttpStatus.FORBIDDEN, "워크스페이스 관리자만 할 수 있습니다."),
+    NOT_PROJECT_MEMBER(HttpStatus.FORBIDDEN, "프로젝트 참여자가 아닙니다."),
+    NOT_PROJECT_MANAGER(HttpStatus.FORBIDDEN, "프로젝트를 만든 사람이나 워크스페이스 관리자만 할 수 있습니다."),
 
     // 404
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 사용자입니다."),
     WORKSPACE_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 워크스페이스입니다."),
     MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "워크스페이스에 없는 멤버입니다."),
+    PROJECT_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 프로젝트입니다."),
 
     // 409
     EMAIL_DUPLICATED(HttpStatus.CONFLICT, "이미 사용 중인 이메일입니다."),
     EMAIL_ALREADY_REGISTERED(HttpStatus.CONFLICT, "이미 이메일로 가입된 계정입니다. 이메일로 로그인해주세요."),
+    ALREADY_PROJECT_MEMBER(HttpStatus.CONFLICT, "이미 프로젝트에 참여 중인 멤버입니다."),
 
     // 503
     OAUTH_NOT_CONFIGURED(HttpStatus.SERVICE_UNAVAILABLE, "소셜 로그인이 설정되지 않았습니다.");

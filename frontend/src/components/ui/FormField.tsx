@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes, ReactNode } from 'react';
+import { useId, type InputHTMLAttributes, type ReactNode } from 'react';
 
 interface FormFieldProps extends InputHTMLAttributes<HTMLInputElement> {
   label: string;
@@ -7,7 +7,9 @@ interface FormFieldProps extends InputHTMLAttributes<HTMLInputElement> {
 
 /** label + input + 에러 메시지. 접근성을 위해 label 과 input 을 id 로 연결한다. */
 export function FormField({ label, error, id, ...props }: FormFieldProps) {
-  const inputId = id ?? props.name;
+  // name 을 id 로 쓰면 한 화면에 모달이 둘 이상일 때 id 가 겹쳐 label 이 엉뚱한 input 을 가리킨다.
+  const generatedId = useId();
+  const inputId = id ?? generatedId;
   const errorId = error ? `${inputId}-error` : undefined;
 
   return (

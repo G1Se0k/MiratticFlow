@@ -1,6 +1,8 @@
 package com.mirattic.flow.workspace.service;
 
 import com.mirattic.flow.global.exception.BusinessException;
+import com.mirattic.flow.project.repository.ProjectMemberRepository;
+import com.mirattic.flow.project.repository.ProjectRepository;
 import com.mirattic.flow.global.response.ErrorCode;
 import com.mirattic.flow.user.entity.User;
 import com.mirattic.flow.user.repository.UserRepository;
@@ -29,6 +31,9 @@ public class WorkspaceService {
     private final WorkspaceInviteRepository inviteRepository;
     private final UserRepository userRepository;
     private final InviteCodeGenerator codeGenerator;
+    // 워크스페이스를 지우면 그 안의 프로젝트도 함께 사라져야 한다.
+    private final ProjectRepository projectRepository;
+    private final ProjectMemberRepository projectMemberRepository;
 
     // ---------------------------------------------------------------- 권한 검사
     // 워크스페이스에 속한 모든 기능이 이 두 메서드를 거친다.
@@ -47,6 +52,17 @@ public class WorkspaceService {
             throw new BusinessException(ErrorCode.NOT_WORKSPACE_OWNER);
         }
         return member;
+    }
+
+    /** 다른 도메인(프로젝트 등)이 예외 없이 소속·권한만 확인할 때 쓴다. */
+    public boolean isMember(Long workspaceId, Long userId) {
+        return memberRepository.findByWorkspaceIdAndUserId(workspaceId, userId).isPresent();
+    }
+
+    public boolean isOwner(Long workspaceId, Long userId) {
+        return memberRepository.findByWorkspaceIdAndUserId(workspaceId, userId)
+                .filter(WorkspaceMember::isOwner)
+                .isPresent();
     }
 
     // ---------------------------------------------------------------- 워크스페이스
@@ -87,6 +103,8 @@ public class WorkspaceService {
     public void delete(Long workspaceId, Long userId) {
         requireOwner(workspaceId, userId);
         // 자식부터 지운다. FK 제약에 걸리지 않도록 순서가 중요하다.
+        projectMemberRepository.deleteByWorkspaceId(workspaceId);
+        projectRepository.deleteByWorkspaceId(workspaceId);
         inviteRepository.deleteByWorkspaceId(workspaceId);
         memberRepository.deleteByWorkspaceId(workspaceId);
         workspaceRepository.deleteById(workspaceId);
@@ -149,12 +167,12 @@ public class WorkspaceService {
 
     // ---------------------------------------------------------------- 공용
 
-    User findUser(Long userId) {
+    public User findUser(Long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
     }
 
-    Workspace findWorkspace(Long workspaceId) {
+    public Workspace findWorkspace(Long workspaceId) {
         return workspaceRepository.findById(workspaceId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.WORKSPACE_NOT_FOUND));
     }

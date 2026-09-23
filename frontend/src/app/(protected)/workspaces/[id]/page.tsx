@@ -1,21 +1,28 @@
 'use client';
 
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
 import { Button } from '@/components/ui/Button';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { FormError, FormField } from '@/components/ui/FormField';
 import { Modal } from '@/components/ui/Modal';
 import { Spinner } from '@/components/ui/Spinner';
 import { useToast } from '@/components/ui/Toast';
 import { useMe } from '@/hooks/useAuth';
+import { useCreateProject, useProjects } from '@/hooks/useProjects';
 import {
   useInviteLinks,
+  useUpdateWorkspace,
   useInviteMutations,
   useJoinCode,
   useMemberMutations,
   useMembers,
   useWorkspace,
 } from '@/hooks/useWorkspaces';
-import { workspaceApi, type Member } from '@/lib/api/workspace';
+import type { ProjectInput } from '@/lib/api/project';
+import { workspaceApi, type Member, type Workspace } from '@/lib/api/workspace';
 
 export default function WorkspaceDetailPage() {
   const params = useParams<{ id: string }>();
@@ -33,7 +40,10 @@ export default function WorkspaceDetailPage() {
 
   const { changeRole, removeMember } = useMemberMutations(workspaceId);
   const { createLink, revokeLink, regenerateCode } = useInviteMutations(workspaceId);
+  const { data: projects } = useProjects(workspaceId);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [creatingProject, setCreatingProject] = useState(false);
+  const [editingWorkspace, setEditingWorkspace] = useState(false);
 
   if (isPending) return <Spinner />;
   if (isError || !workspace) {
@@ -56,10 +66,58 @@ export default function WorkspaceDetailPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <header>
-        <h1 className="text-xl font-semibold tracking-tight">{workspace.name}</h1>
-        {workspace.description && <p className="mt-1 text-sm text-slate-500">{workspace.description}</p>}
+      <header className="flex items-start gap-3">
+        <div className="min-w-0">
+          <h1 className="text-xl font-semibold tracking-tight">{workspace.name}</h1>
+          {workspace.description && <p className="mt-1 text-sm text-slate-500">{workspace.description}</p>}
+        </div>
+        {isOwner && (
+          <Button size="sm" variant="secondary" className="ml-auto shrink-0" onClick={() => setEditingWorkspace(true)}>
+            설정
+          </Button>
+        )}
       </header>
+
+      {/* 프로젝트 — 워크스페이스에서 가장 자주 쓰는 화면이라 맨 위에 둔다 */}
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium text-slate-500">프로젝트 {projects?.length ?? 0}개</h2>
+          <Button size="sm" onClick={() => setCreatingProject(true)}>
+            새 프로젝트
+          </Button>
+        </div>
+        {projects?.length === 0 ? (
+          <EmptyState
+            title="아직 프로젝트가 없습니다"
+            description="프로젝트를 만들면 그 안에서 이슈를 관리하고 팀과 이야기할 수 있습니다."
+            action={<Button onClick={() => setCreatingProject(true)}>새 프로젝트 만들기</Button>}
+          />
+        ) : (
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {projects?.map((project) => (
+              <li key={project.id}>
+                <Link
+                  href={`/projects/${project.id}`}
+                  className="block rounded-xl border border-slate-200 p-4 transition-colors hover:border-brand-400 dark:border-slate-800 dark:hover:border-brand-500"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="truncate font-medium">{project.name}</p>
+                    {project.status === 'ARCHIVED' && (
+                      <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500 dark:bg-slate-800">
+                        보관됨
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-sm text-slate-500">{project.description || '설명 없음'}</p>
+                  <p className="mt-2 text-xs text-slate-400">
+                    참여자 {project.memberCount}명 · {project.createdByName}
+                  </p>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {isOwner && (
         <section className="flex flex-col gap-4 rounded-xl border border-slate-200 p-5 dark:border-slate-800">
@@ -172,6 +230,18 @@ export default function WorkspaceDetailPage() {
         </Button>
       </section>
 
+      <CreateProjectModal
+        open={creatingProject}
+        onClose={() => setCreatingProject(false)}
+        workspaceId={workspaceId}
+      />
+
+      <WorkspaceSettingsModal
+        open={editingWorkspace}
+        onClose={() => setEditingWorkspace(false)}
+        workspace={workspace}
+      />
+
       <Modal open={confirmLeave} onClose={() => setConfirmLeave(false)} title="워크스페이스를 나갈까요?">
         <p className="text-sm text-slate-500">나가면 이 워크스페이스의 내용을 볼 수 없습니다.</p>
         <div className="mt-5 flex justify-end gap-2">
@@ -239,5 +309,101 @@ function MemberRow({
         </div>
       )}
     </li>
+  );
+}
+
+function CreateProjectModal({
+  open,
+  onClose,
+  workspaceId,
+}: {
+  open: boolean;
+  onClose: () => void;
+  workspaceId: number;
+}) {
+  const create = useCreateProject(workspaceId);
+  const router = useRouter();
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<ProjectInput>();
+
+  return (
+    <Modal open={open} onClose={onClose} title="새 프로젝트">
+      <form
+        className="flex flex-col gap-4"
+        onSubmit={handleSubmit((values) =>
+          create.mutate(values, {
+            onSuccess: (project) => {
+              reset();
+              onClose();
+              router.push(`/projects/${project.id}`);
+            },
+          }),
+        )}
+      >
+        <FormField
+          label="이름"
+          placeholder="예: 웹 리뉴얼"
+          error={errors.name?.message}
+          {...register('name', { required: '이름을 입력해주세요.', maxLength: { value: 50, message: '50자 이하' } })}
+        />
+        <FormField label="설명 (선택)" placeholder="무엇을 만드나요?" {...register('description')} />
+        {create.isError && <FormError>{create.error.message}</FormError>}
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={onClose}>
+            취소
+          </Button>
+          <Button type="submit" disabled={create.isPending}>
+            만들기
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function WorkspaceSettingsModal({
+  open,
+  onClose,
+  workspace,
+}: {
+  open: boolean;
+  onClose: () => void;
+  workspace: Workspace;
+}) {
+  const update = useUpdateWorkspace(workspace.id);
+  const toast = useToast();
+  const { register, handleSubmit, formState: { errors } } = useForm<{ name: string; description?: string }>({
+    values: { name: workspace.name, description: workspace.description ?? '' },
+  });
+
+  return (
+    <Modal open={open} onClose={onClose} title="워크스페이스 설정">
+      <form
+        className="flex flex-col gap-4"
+        onSubmit={handleSubmit((values) =>
+          update.mutate(values, {
+            onSuccess: () => {
+              toast('워크스페이스를 수정했습니다.');
+              onClose();
+            },
+          }),
+        )}
+      >
+        <FormField
+          label="이름"
+          error={errors.name?.message}
+          {...register('name', { required: '이름을 입력해주세요.', maxLength: { value: 50, message: '50자 이하' } })}
+        />
+        <FormField label="설명" {...register('description')} />
+        {update.isError && <FormError>{update.error.message}</FormError>}
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={onClose}>
+            취소
+          </Button>
+          <Button type="submit" disabled={update.isPending}>
+            저장
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }

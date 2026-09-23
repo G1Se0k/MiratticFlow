@@ -14,8 +14,9 @@ export const workspaceKeys = {
 export const useWorkspaces = () =>
   useQuery({ queryKey: workspaceKeys.all, queryFn: workspaceApi.list });
 
+/** id 가 아직 없을 때(부모 데이터 로딩 중)는 요청하지 않는다. */
 export const useWorkspace = (id: number) =>
-  useQuery({ queryKey: workspaceKeys.detail(id), queryFn: () => workspaceApi.get(id) });
+  useQuery({ queryKey: workspaceKeys.detail(id), queryFn: () => workspaceApi.get(id), enabled: id > 0 });
 
 export const useMembers = (id: number) =>
   useQuery({ queryKey: workspaceKeys.members(id), queryFn: () => workspaceApi.members(id) });
