@@ -33,6 +33,26 @@ cd backend && ./mvnw spring-boot:run    # http://localhost:8080
 cd frontend && cp .env.local.example .env.local && npm install && npm run dev   # http://localhost:3000
 ```
 
+## 운영 배포 자동화
+
+`main`에 푸시하거나 GitHub Actions의 `Deploy`를 수동 실행하면 홈 서버에서
+소스를 갱신하고 Docker Compose로 빌드·재배포합니다.
+
+- 서버 경로: `/Users/giseok/Documents/MiratticFlow`
+- GitHub Actions 시크릿: `DEPLOY_SSH_KEY` (서버 SSH 접속용 개인 키)
+- 서버 전용 파일: `.env.prod`, `Caddyfile` (Git 추적 제외)
+
+최초 설정 시 `.env.prod.example`과 `Caddyfile.example`을 각각 복사해 설정합니다.
+기존 서버 파일은 덮어쓰지 않습니다. Caddy는 현재 운영 Compose 안에서 실행되므로
+호스트의 80·443 포트를 사용할 수 있어야 합니다.
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+```
+
+배포는 fast-forward만 허용하며 서버의 로컬 변경을 강제로 초기화하지 않습니다.
+컨테이너 기동 확인 이후에도 실제 도메인의 HTTPS 접속은 별도로 확인해야 합니다.
+
 ## 진행 상황
 
 - [x] Phase 1 — 프로젝트 초기화

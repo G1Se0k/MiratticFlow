@@ -1,0 +1,45 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: SSH & docker compose up
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ssh.mirattic.com
+          port: 22
+          username: giseok
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          command_timeout: 35m
+          script: |
+            set -eu
+            export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+            cd /Users/giseok/Documents/MiratticFlow
+            test -f .env.prod
+            test -f Caddyfile
+
+            # Git 추적 해제 커밋을 처음 받을 때도 서버 설정을 보존한다.
+            caddy_backup=$(mktemp)
+            cp -p Caddyfile "$caddy_backup"
+            trap 'cp -p "$caddy_backup" Caddyfile; rm -f "$caddy_backup"' EXIT
+            git fetch origin main
+            git merge --ff-only origin/main
+            cp -p "$caddy_backup" Caddyfile
+
+            docker compose -f docker-compose.prod.yml --env-file .env.prod config --quiet
+            docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build --wait --wait-timeout 180
+            docker compose -f docker-compose.prod.yml --env-file .env.prod ps
