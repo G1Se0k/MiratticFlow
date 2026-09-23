@@ -41,6 +41,7 @@ public enum ErrorCode {
     ISSUE_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 이슈입니다."),
     COMMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 댓글입니다."),
     TOPIC_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 주제입니다."),
+    NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 알림입니다."),
 
     // 409
     EMAIL_DUPLICATED(HttpStatus.CONFLICT, "이미 사용 중인 이메일입니다."),

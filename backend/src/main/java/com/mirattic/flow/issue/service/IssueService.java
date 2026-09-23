@@ -14,6 +14,8 @@ import com.mirattic.flow.issue.entity.Issue;
 import com.mirattic.flow.issue.entity.IssuePriority;
 import com.mirattic.flow.issue.entity.IssueStatus;
 import com.mirattic.flow.issue.repository.IssueRepository;
+import com.mirattic.flow.notification.entity.NotificationType;
+import com.mirattic.flow.notification.service.NotificationSender;
 import com.mirattic.flow.project.entity.Project;
 import com.mirattic.flow.project.repository.ProjectMemberRepository;
 import com.mirattic.flow.project.service.ProjectService;
@@ -34,6 +36,7 @@ public class IssueService {
     private final TopicRepository topicRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final SystemMessageSender systemMessageSender;
+    private final NotificationSender notificationSender;
     private final ProjectService projectService;
     private final ProjectMemberRepository projectMemberRepository;
     private final UserRepository userRepository;
@@ -76,6 +79,9 @@ public class IssueService {
                 request.dueDate()));
 
         systemMessageSender.send(projectId, "%s님이 %s를 등록했습니다.".formatted(issue.getReporter().getName(), label(issue)));
+        if (issue.getAssignee() != null) {
+            notifyAssigned(issue, userId);
+        }
         return IssueResponse.of(issue, true);
     }
 
@@ -98,9 +104,11 @@ public class IssueService {
         String actor = findUser(userId).getName();
         if (before != issue.getStatus()) {
             announceStatus(issue, actor);
+            notifyStatusChanged(issue, userId);
         }
         if (!sameUser(previousAssignee, issue.getAssignee())) {
             announceAssignee(issue, actor);
+            notifyAssigned(issue, userId);
         }
         return IssueResponse.of(issue, canDelete(issue, userId));
     }
@@ -111,6 +119,7 @@ public class IssueService {
         if (issue.getStatus() != status) {
             issue.changeStatus(status);
             announceStatus(issue, findUser(userId).getName());
+            notifyStatusChanged(issue, userId);
         }
         return IssueResponse.of(issue, canDelete(issue, userId));
     }
@@ -177,6 +186,29 @@ public class IssueService {
                 : "없음으로 바꿨습니다.";
         systemMessageSender.send(issue.getProject().getId(),
                 "%s님이 %s 담당자를 %s".formatted(actor, label(issue), assignee));
+    }
+
+    // ---------------------------------------------------------------- 알림
+
+    /** 담당자가 빠지는 경우(null)에는 알릴 사람이 없다. */
+    private void notifyAssigned(Issue issue, Long actorId) {
+        if (issue.getAssignee() == null) {
+            return;
+        }
+        notificationSender.send(actorId, NotificationType.ISSUE_ASSIGNED,
+                "%s 담당자로 지정되었습니다: %s".formatted(label(issue), issue.getTitle()),
+                link(issue), issue.getAssignee());
+    }
+
+    /** 담당자와 작성자 둘 다 알아야 한다. 같은 사람이거나 본인이 바꿨으면 Sender 가 걸러낸다. */
+    private void notifyStatusChanged(Issue issue, Long actorId) {
+        notificationSender.send(actorId, NotificationType.ISSUE_STATUS_CHANGED,
+                "%s 상태가 %s로 바뀌었습니다.".formatted(label(issue), issue.getStatus()),
+                link(issue), issue.getAssignee(), issue.getReporter());
+    }
+
+    private static String link(Issue issue) {
+        return "/issues/" + issue.getId();
     }
 
     private static boolean sameUser(User a, User b) {

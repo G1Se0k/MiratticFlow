@@ -8,6 +8,8 @@ import com.mirattic.flow.global.exception.BusinessException;
 import com.mirattic.flow.global.response.ErrorCode;
 import com.mirattic.flow.issue.entity.Issue;
 import com.mirattic.flow.issue.service.IssueService;
+import com.mirattic.flow.notification.entity.NotificationType;
+import com.mirattic.flow.notification.service.NotificationSender;
 import com.mirattic.flow.project.service.ProjectService;
 import com.mirattic.flow.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +26,7 @@ public class CommentService {
     private final CommentRepository commentRepository;
     private final IssueService issueService;
     private final ProjectService projectService;
+    private final NotificationSender notificationSender;
     private final UserRepository userRepository;
 
     /** 댓글을 볼 수 있는가 = 그 이슈를 볼 수 있는가. 권한 판단을 이슈에 그대로 맡긴다. */
@@ -41,6 +44,12 @@ public class CommentService {
                 issue,
                 userRepository.findById(userId).orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND)),
                 request.content()));
+
+        // 이슈 작성자와 담당자에게 알린다. 본인이 쓴 댓글은 본인에게 가지 않는다.
+        notificationSender.send(userId, NotificationType.COMMENT_ADDED,
+                "%s님이 ISSUE-%d에 댓글을 남겼습니다.".formatted(comment.getAuthor().getName(), issue.getNumber()),
+                "/issues/" + issue.getId(), issue.getReporter(), issue.getAssignee());
+
         return CommentResponse.of(comment, true, true);
     }
 

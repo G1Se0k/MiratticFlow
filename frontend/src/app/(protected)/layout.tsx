@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, type ReactNode } from 'react';
+import { NotificationBell } from '@/components/notification/NotificationBell';
 import { Button } from '@/components/ui/Button';
 import { Logo } from '@/components/ui/Logo';
 import { Spinner } from '@/components/ui/Spinner';
@@ -39,7 +40,8 @@ export default function ProtectedLayout({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
           <Logo size="sm" href="/workspaces" />
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <NotificationBell />
             <span className="hidden text-sm text-slate-500 sm:inline">{user.name}</span>
             <Button variant="ghost" size="sm" onClick={() => logout.mutate()} disabled={logout.isPending}>
               로그아웃

@@ -3,6 +3,8 @@ package com.mirattic.flow.project.service;
 import com.mirattic.flow.chat.entity.Topic;
 import com.mirattic.flow.chat.repository.ChatMessageRepository;
 import com.mirattic.flow.chat.repository.TopicRepository;
+import com.mirattic.flow.notification.entity.NotificationType;
+import com.mirattic.flow.notification.service.NotificationSender;
 import com.mirattic.flow.chat.service.SystemMessageSender;
 import com.mirattic.flow.comment.repository.CommentRepository;
 import com.mirattic.flow.global.exception.BusinessException;
@@ -41,6 +43,7 @@ public class ProjectService {
     // TopicService 가 아니라 리포지토리를 직접 쓴다. TopicService 는 ProjectService 를 의존하므로 순환이 된다.
     private final TopicRepository topicRepository;
     private final ChatMessageRepository chatMessageRepository;
+    private final NotificationSender notificationSender;
     private final SystemMessageSender systemMessageSender;
 
     // ---------------------------------------------------------------- 권한 검사
@@ -161,6 +164,9 @@ public class ProjectService {
         ProjectMember member = memberRepository.save(
                 ProjectMember.join(project, workspaceService.findUser(targetUserId)));
         systemMessageSender.send(projectId, member.getUser().getName() + "님이 참여했습니다.");
+        notificationSender.send(actorId, NotificationType.PROJECT_JOINED,
+                "%s 프로젝트에 참여하게 되었습니다.".formatted(project.getName()),
+                "/projects/" + projectId, member.getUser());
         return ProjectMemberResponse.from(member);
     }
 
