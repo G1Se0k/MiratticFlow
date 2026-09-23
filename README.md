@@ -44,5 +44,5 @@ cd frontend && cp .env.local.example .env.local && npm install && npm run dev   
 - [x] Phase 7 — WebSocket 채팅
 - [x] Phase 8 — 알림
 - [x] Phase 9 — 대시보드
-- [ ] Phase 10 — 품질 개선
+- [x] Phase 10 — 품질 개선
 - [ ] Phase 11 — 배포

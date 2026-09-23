@@ -1,22 +1,14 @@
 package com.mirattic.flow.workspace;
 
-import com.mirattic.flow.auth.dto.LoginRequest;
-import com.mirattic.flow.auth.dto.SignupRequest;
 import com.mirattic.flow.workspace.dto.RoleRequest;
 import com.mirattic.flow.workspace.dto.WorkspaceRequest;
 import com.mirattic.flow.workspace.entity.WorkspaceRole;
+import com.mirattic.flow.support.ApiTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
-import tools.jackson.databind.ObjectMapper;
-
-import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -24,43 +16,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** 권한 검사와 초대 수명 규칙을 실제 DB 제약까지 포함해 확인한다. */
-@SpringBootTest
-@ActiveProfiles("test")
-@AutoConfigureMockMvc
-class WorkspaceApiTest {
-
-    @Autowired MockMvc mockMvc;
-    @Autowired ObjectMapper objectMapper;
+class WorkspaceApiTest extends ApiTestSupport {
 
     // ---------------------------------------------------------------- 헬퍼
 
-    private String json(Object body) {
-        return objectMapper.writeValueAsString(body);
-    }
-
     /** 새 사용자를 만들고 access token 을 돌려준다. */
-    private String newUserToken() throws Exception {
-        String email = "u" + UUID.randomUUID().toString().substring(0, 8) + "@test.com";
-        mockMvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                .content(json(new SignupRequest(email, "password123", "테스터"))));
-        String body = mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content(json(new LoginRequest(email, "password123"))))
-                .andReturn().getResponse().getContentAsString();
-        return objectMapper.readTree(body).get("accessToken").asString();
-    }
 
-    private ResultActions authed(org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder builder,
-                                 String token) throws Exception {
-        return mockMvc.perform(builder.header("Authorization", "Bearer " + token));
-    }
-
-    private long createWorkspace(String token, String name) throws Exception {
-        String body = authed(post("/api/workspaces").contentType(MediaType.APPLICATION_JSON)
-                .content(json(new WorkspaceRequest(name, "설명"))), token)
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getContentAsString();
-        return objectMapper.readTree(body).get("id").asLong();
-    }
 
     private String createInviteLink(String token, long workspaceId) throws Exception {
         String body = authed(post("/api/workspaces/{id}/invites", workspaceId), token)
@@ -76,10 +37,6 @@ class WorkspaceApiTest {
         return objectMapper.readTree(body).get("code").asString();
     }
 
-    private long userIdOf(String token) throws Exception {
-        String body = authed(get("/api/users/me"), token).andReturn().getResponse().getContentAsString();
-        return objectMapper.readTree(body).get("id").asLong();
-    }
 
     // ---------------------------------------------------------------- 워크스페이스
 

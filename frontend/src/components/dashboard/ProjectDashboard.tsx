@@ -2,7 +2,7 @@
 
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Spinner } from '@/components/ui/Spinner';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { useProjectStats } from '@/hooks/useProjects';
 import { ISSUE_PRIORITY_LABEL, ISSUE_STATUS_LABEL } from '@/lib/api/issue';
 
@@ -13,7 +13,7 @@ const PRIORITY_COLOR = ['#94a3b8', '#60a5fa', '#f59e0b', '#ef4444']; // LOW, MED
 export function ProjectDashboard({ projectId }: { projectId: number }) {
   const { data: stats, isPending } = useProjectStats(projectId);
 
-  if (isPending) return <Spinner />;
+  if (isPending) return <DashboardSkeleton />;
   if (!stats) return null;
 
   const statusData = stats.byStatus.map((s) => ({ name: ISSUE_STATUS_LABEL[s.status], value: s.count }));
@@ -107,6 +107,24 @@ export function ProjectDashboard({ projectId }: { projectId: number }) {
   );
 }
 
+/** 카드 4개 + 패널 3개. 실제 배치와 같은 모양이라 데이터가 와도 화면이 흔들리지 않는다. */
+function DashboardSkeleton() {
+  return (
+    <section className="flex flex-col gap-4" role="status" aria-label="불러오는 중">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {Array.from({ length: 4 }, (_, i) => (
+          <Skeleton key={i} className="h-[74px]" />
+        ))}
+      </div>
+      <div className="grid gap-4 lg:grid-cols-3">
+        {Array.from({ length: 3 }, (_, i) => (
+          <Skeleton key={i} className="h-[250px]" />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
@@ -119,7 +137,8 @@ function StatCard({ label, value }: { label: string; value: number }) {
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
-      <h3 className="mb-3 text-xs font-medium text-slate-500">{title}</h3>
+      {/* 아래 이슈·참여자 섹션과 같은 단계다. h3 으로 두면 h1 다음에 h3 이 와서 단계를 건너뛴다. */}
+      <h2 className="mb-3 text-xs font-medium text-slate-500">{title}</h2>
       {children}
     </div>
   );

@@ -1,65 +1,23 @@
 package com.mirattic.flow.comment;
 
-import com.mirattic.flow.auth.dto.LoginRequest;
-import com.mirattic.flow.auth.dto.SignupRequest;
 import com.mirattic.flow.comment.dto.CommentRequest;
 import com.mirattic.flow.issue.dto.IssueRequest;
 import com.mirattic.flow.project.dto.AddMemberRequest;
 import com.mirattic.flow.project.dto.ProjectRequest;
 import com.mirattic.flow.workspace.dto.WorkspaceRequest;
+import com.mirattic.flow.support.ApiTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.ResultActions;
-import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
-import tools.jackson.databind.ObjectMapper;
-
-import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** 댓글 권한이 이슈 접근 권한을 그대로 따르는지, 수정/삭제 범위가 다른지 확인한다. */
-@SpringBootTest
-@ActiveProfiles("test")
-@AutoConfigureMockMvc
-class CommentApiTest {
+class CommentApiTest extends ApiTestSupport {
 
-    @Autowired MockMvc mockMvc;
-    @Autowired ObjectMapper objectMapper;
-
-    private String json(Object body) {
-        return objectMapper.writeValueAsString(body);
-    }
-
-    private String newUserToken() throws Exception {
-        String email = "c" + UUID.randomUUID().toString().substring(0, 8) + "@test.com";
-        mockMvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                .content(json(new SignupRequest(email, "password123", "테스터"))));
-        String body = mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content(json(new LoginRequest(email, "password123"))))
-                .andReturn().getResponse().getContentAsString();
-        return objectMapper.readTree(body).get("accessToken").asString();
-    }
-
-    private ResultActions authed(MockHttpServletRequestBuilder builder, String token) throws Exception {
-        return mockMvc.perform(builder.header("Authorization", "Bearer " + token));
-    }
-
-    private long userIdOf(String token) throws Exception {
-        String body = authed(get("/api/users/me"), token).andReturn().getResponse().getContentAsString();
-        return objectMapper.readTree(body).get("id").asLong();
-    }
-
-    private long id(String body) {
-        return objectMapper.readTree(body).get("id").asLong();
-    }
 
     /** 워크스페이스 → 프로젝트 → 이슈까지 만들고 이슈 id 를 돌려준다. */
     private long setUpIssue(String token) throws Exception {
@@ -80,7 +38,7 @@ class CommentApiTest {
     }
 
     /** 새 사용자를 이슈가 속한 프로젝트까지 참여시킨다. */
-    private String addProjectMember(String ownerToken, long issueId) throws Exception {
+    private String addMemberOfIssueProject(String ownerToken, long issueId) throws Exception {
         long projectId = projectIdOfIssue(issueId, ownerToken);
         String projectBody = authed(get("/api/projects/{id}", projectId), ownerToken)
                 .andReturn().getResponse().getContentAsString();
@@ -140,7 +98,7 @@ class CommentApiTest {
     void cannotEditOthersComment() throws Exception {
         String ownerToken = newUserToken();
         long issueId = setUpIssue(ownerToken);
-        String memberToken = addProjectMember(ownerToken, issueId);
+        String memberToken = addMemberOfIssueProject(ownerToken, issueId);
         long commentId = writeComment(memberToken, issueId, "멤버의 댓글");
 
         authed(patch("/api/comments/{id}", commentId).contentType(MediaType.APPLICATION_JSON)
@@ -159,7 +117,7 @@ class CommentApiTest {
     void managerCanDeleteOthersComment() throws Exception {
         String ownerToken = newUserToken();
         long issueId = setUpIssue(ownerToken);
-        String memberToken = addProjectMember(ownerToken, issueId);
+        String memberToken = addMemberOfIssueProject(ownerToken, issueId);
         long commentId = writeComment(memberToken, issueId, "지워질 댓글");
 
         // 관리자는 수정은 못 하고 삭제만 된다 — 플래그가 따로 내려간다
@@ -167,7 +125,7 @@ class CommentApiTest {
                 .andExpect(jsonPath("$[0].canEdit").value(false))
                 .andExpect(jsonPath("$[0].canDelete").value(true));
 
-        String otherToken = addProjectMember(ownerToken, issueId);
+        String otherToken = addMemberOfIssueProject(ownerToken, issueId);
         authed(delete("/api/comments/{id}", commentId), otherToken)
                 .andExpect(status().isForbidden());
 

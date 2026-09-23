@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { FormError, FormField } from '@/components/ui/FormField';
 import { Modal } from '@/components/ui/Modal';
-import { Spinner } from '@/components/ui/Spinner';
+import { SkeletonList } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 import { useCreateWorkspace, useWorkspaces } from '@/hooks/useWorkspaces';
 import { workspaceApi } from '@/lib/api/workspace';
@@ -18,7 +18,7 @@ export default function WorkspacesPage() {
   const [creating, setCreating] = useState(false);
   const [joining, setJoining] = useState(false);
 
-  if (isPending) return <Spinner />;
+  if (isPending) return <SkeletonList rows={3} className="h-24" />;
 
   return (
     <div className="flex flex-col gap-6">

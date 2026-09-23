@@ -1,15 +1,11 @@
 package com.mirattic.flow.auth.controller;
 
-import tools.jackson.databind.ObjectMapper;
-import com.mirattic.flow.auth.dto.LoginRequest;
 import com.mirattic.flow.auth.dto.ReissueRequest;
+import com.mirattic.flow.auth.dto.LoginRequest;
 import com.mirattic.flow.auth.dto.SignupRequest;
+import com.mirattic.flow.support.ApiTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -20,17 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** 회원가입 → 로그인 → 보호된 API 호출까지 필터 체인을 포함해 확인한다. */
-@SpringBootTest
-@ActiveProfiles("test")
-@AutoConfigureMockMvc
-class AuthApiTest {
-
-    @Autowired MockMvc mockMvc;
-    @Autowired ObjectMapper objectMapper;
-
-    private String json(Object body) throws Exception {
-        return objectMapper.writeValueAsString(body);
-    }
+class AuthApiTest extends ApiTestSupport {
 
     @Test
     @DisplayName("가입한 사용자는 로그인 후 받은 토큰으로 /api/users/me 를 조회할 수 있다")

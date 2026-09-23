@@ -1,99 +1,29 @@
 package com.mirattic.flow.issue;
 
-import com.mirattic.flow.auth.dto.LoginRequest;
-import com.mirattic.flow.auth.dto.SignupRequest;
 import com.mirattic.flow.issue.dto.IssueRequest;
 import com.mirattic.flow.issue.dto.IssueStatusRequest;
 import com.mirattic.flow.issue.entity.IssuePriority;
 import com.mirattic.flow.issue.entity.IssueStatus;
-import com.mirattic.flow.project.dto.AddMemberRequest;
-import com.mirattic.flow.project.dto.ProjectRequest;
-import com.mirattic.flow.workspace.dto.WorkspaceRequest;
+import com.mirattic.flow.support.ApiTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.ResultActions;
-import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
-import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDate;
-import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** 이슈 번호 채번, 담당자 제약, 검색·필터·정렬, 삭제 권한을 확인한다. */
-@SpringBootTest
-@ActiveProfiles("test")
-@AutoConfigureMockMvc
-class IssueApiTest {
-
-    @Autowired MockMvc mockMvc;
-    @Autowired ObjectMapper objectMapper;
+class IssueApiTest extends ApiTestSupport {
 
     // ---------------------------------------------------------------- 헬퍼
 
-    private String json(Object body) {
-        return objectMapper.writeValueAsString(body);
-    }
-
-    private String newUserToken() throws Exception {
-        String email = "i" + UUID.randomUUID().toString().substring(0, 8) + "@test.com";
-        mockMvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                .content(json(new SignupRequest(email, "password123", "테스터"))));
-        String body = mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content(json(new LoginRequest(email, "password123"))))
-                .andReturn().getResponse().getContentAsString();
-        return objectMapper.readTree(body).get("accessToken").asString();
-    }
-
-    private ResultActions authed(MockHttpServletRequestBuilder builder, String token) throws Exception {
-        return mockMvc.perform(builder.header("Authorization", "Bearer " + token));
-    }
-
-    private long userIdOf(String token) throws Exception {
-        String body = authed(get("/api/users/me"), token).andReturn().getResponse().getContentAsString();
-        return objectMapper.readTree(body).get("id").asLong();
-    }
-
     /** 워크스페이스 + 프로젝트를 만들고 프로젝트 id 를 돌려준다. */
-    private long setUpProject(String token) throws Exception {
-        String wsBody = authed(post("/api/workspaces").contentType(MediaType.APPLICATION_JSON)
-                .content(json(new WorkspaceRequest("팀", null))), token)
-                .andReturn().getResponse().getContentAsString();
-        long workspaceId = objectMapper.readTree(wsBody).get("id").asLong();
-
-        String body = authed(post("/api/workspaces/{id}/projects", workspaceId).contentType(MediaType.APPLICATION_JSON)
-                .content(json(new ProjectRequest("프로젝트", null, null))), token)
-                .andReturn().getResponse().getContentAsString();
-        return objectMapper.readTree(body).get("id").asLong();
-    }
-
-    private long workspaceIdOfProject(long projectId, String token) throws Exception {
-        String body = authed(get("/api/projects/{id}", projectId), token).andReturn().getResponse().getContentAsString();
-        return objectMapper.readTree(body).get("workspaceId").asLong();
-    }
 
     /** 새 사용자를 워크스페이스 → 프로젝트까지 참여시키고 토큰을 돌려준다. */
-    private String addProjectMember(String ownerToken, long projectId) throws Exception {
-        long workspaceId = workspaceIdOfProject(projectId, ownerToken);
-        String codeBody = authed(get("/api/workspaces/{id}/invite-code", workspaceId), ownerToken)
-                .andReturn().getResponse().getContentAsString();
-        String code = objectMapper.readTree(codeBody).get("code").asString();
-
-        String token = newUserToken();
-        authed(post("/api/invites/{code}/accept", code), token).andExpect(status().isOk());
-        authed(post("/api/projects/{id}/members", projectId).contentType(MediaType.APPLICATION_JSON)
-                .content(json(new AddMemberRequest(userIdOf(token)))), ownerToken)
-                .andExpect(status().isCreated());
-        return token;
-    }
 
     private long createIssue(String token, long projectId, IssueRequest request) throws Exception {
         String body = authed(post("/api/projects/{id}/issues", projectId).contentType(MediaType.APPLICATION_JSON)

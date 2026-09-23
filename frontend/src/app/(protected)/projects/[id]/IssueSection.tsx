@@ -9,7 +9,7 @@ import { PriorityBadge } from '@/components/ui/Badge';
 import { FormError, FormField } from '@/components/ui/FormField';
 import { Modal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
-import { Spinner } from '@/components/ui/Spinner';
+import { SkeletonList } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 import { useCreateIssue, useIssues, useQuickStatusChange } from '@/hooks/useIssues';
 import {
@@ -106,7 +106,7 @@ export function IssueSection({ projectId, members }: { projectId: number; member
       </div>
 
       {isPending ? (
-        <Spinner />
+        <SkeletonList rows={4} className="h-14" />
       ) : data && data.content.length === 0 ? (
         <EmptyState
           title="이슈가 없습니다"

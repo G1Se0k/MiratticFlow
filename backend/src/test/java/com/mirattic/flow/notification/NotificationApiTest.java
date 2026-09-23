@@ -1,92 +1,23 @@
 package com.mirattic.flow.notification;
 
-import com.mirattic.flow.auth.dto.LoginRequest;
-import com.mirattic.flow.auth.dto.SignupRequest;
 import com.mirattic.flow.comment.dto.CommentRequest;
 import com.mirattic.flow.issue.dto.IssueRequest;
 import com.mirattic.flow.issue.dto.IssueStatusRequest;
 import com.mirattic.flow.issue.entity.IssueStatus;
-import com.mirattic.flow.project.dto.AddMemberRequest;
-import com.mirattic.flow.project.dto.ProjectRequest;
-import com.mirattic.flow.workspace.dto.WorkspaceRequest;
+import com.mirattic.flow.support.ApiTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.ResultActions;
-import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
-import tools.jackson.databind.ObjectMapper;
-
-import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** 알림이 "알아야 할 사람에게만" 가는지, 읽음 처리가 내 것에만 먹히는지 확인한다. */
-@SpringBootTest
-@ActiveProfiles("test")
-@AutoConfigureMockMvc
-class NotificationApiTest {
-
-    @Autowired MockMvc mockMvc;
-    @Autowired ObjectMapper objectMapper;
-
-    private String json(Object body) {
-        return objectMapper.writeValueAsString(body);
-    }
-
-    private String newUserToken(String name) throws Exception {
-        String email = "n" + UUID.randomUUID().toString().substring(0, 8) + "@test.com";
-        mockMvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                .content(json(new SignupRequest(email, "password123", name))));
-        String body = mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content(json(new LoginRequest(email, "password123"))))
-                .andReturn().getResponse().getContentAsString();
-        return objectMapper.readTree(body).get("accessToken").asString();
-    }
-
-    private ResultActions authed(MockHttpServletRequestBuilder builder, String token) throws Exception {
-        return mockMvc.perform(builder.header("Authorization", "Bearer " + token));
-    }
-
-    private long id(String body) {
-        return objectMapper.readTree(body).get("id").asLong();
-    }
-
-    private long userIdOf(String token) throws Exception {
-        return id(authed(get("/api/users/me"), token).andReturn().getResponse().getContentAsString());
-    }
-
-    private long setUpProject(String token) throws Exception {
-        long workspaceId = id(authed(post("/api/workspaces").contentType(MediaType.APPLICATION_JSON)
-                .content(json(new WorkspaceRequest("팀", null))), token)
-                .andReturn().getResponse().getContentAsString());
-        return id(authed(post("/api/workspaces/{id}/projects", workspaceId).contentType(MediaType.APPLICATION_JSON)
-                .content(json(new ProjectRequest("웹 리뉴얼", null, null))), token)
-                .andReturn().getResponse().getContentAsString());
-    }
+class NotificationApiTest extends ApiTestSupport {
 
     /** 워크스페이스에 초대해 프로젝트 참여자로 넣은 새 사용자의 토큰. */
-    private String addProjectMember(String ownerToken, long projectId, String name) throws Exception {
-        String projectBody = authed(get("/api/projects/{id}", projectId), ownerToken)
-                .andReturn().getResponse().getContentAsString();
-        long workspaceId = objectMapper.readTree(projectBody).get("workspaceId").asLong();
-        String codeBody = authed(get("/api/workspaces/{id}/invite-code", workspaceId), ownerToken)
-                .andReturn().getResponse().getContentAsString();
-        String code = objectMapper.readTree(codeBody).get("code").asString();
-
-        String token = newUserToken(name);
-        authed(post("/api/invites/{code}/accept", code), token).andExpect(status().isOk());
-        authed(post("/api/projects/{id}/members", projectId).contentType(MediaType.APPLICATION_JSON)
-                .content(json(new AddMemberRequest(userIdOf(token)))), ownerToken)
-                .andExpect(status().isCreated());
-        return token;
-    }
 
     private long createIssue(String token, long projectId, String title, Long assigneeId) throws Exception {
         return id(authed(post("/api/projects/{id}/issues", projectId).contentType(MediaType.APPLICATION_JSON)
@@ -100,7 +31,7 @@ class NotificationApiTest {
     @DisplayName("프로젝트에 추가되면 알림이 간다")
     void notifiedOnProjectJoin() throws Exception {
         String ownerToken = newUserToken("오너");
-        long projectId = setUpProject(ownerToken);
+        long projectId = setUpProject(ownerToken, "웹 리뉴얼");
         String memberToken = addProjectMember(ownerToken, projectId, "게스트");
 
         authed(get("/api/notifications"), memberToken)
@@ -120,7 +51,7 @@ class NotificationApiTest {
     @DisplayName("담당자로 지정되면 알림이 가고, 본인이 본인을 지정하면 가지 않는다")
     void notifiedOnAssignment() throws Exception {
         String ownerToken = newUserToken("오너");
-        long projectId = setUpProject(ownerToken);
+        long projectId = setUpProject(ownerToken, "웹 리뉴얼");
         String memberToken = addProjectMember(ownerToken, projectId, "게스트");
         long memberId = userIdOf(memberToken);
         long ownerId = userIdOf(ownerToken);
@@ -142,7 +73,7 @@ class NotificationApiTest {
     @DisplayName("상태를 바꾸면 담당자와 작성자에게 가고, 바꾼 본인에게는 가지 않는다")
     void notifiedOnStatusChange() throws Exception {
         String ownerToken = newUserToken("오너");
-        long projectId = setUpProject(ownerToken);
+        long projectId = setUpProject(ownerToken, "웹 리뉴얼");
         String memberToken = addProjectMember(ownerToken, projectId, "게스트");
         long issueId = createIssue(ownerToken, projectId, "로그인 오류", userIdOf(memberToken));
 
@@ -165,7 +96,7 @@ class NotificationApiTest {
     @DisplayName("댓글은 이슈 작성자와 담당자에게 알리고, 같은 사람이면 한 번만 간다")
     void notifiedOnComment() throws Exception {
         String ownerToken = newUserToken("오너");
-        long projectId = setUpProject(ownerToken);
+        long projectId = setUpProject(ownerToken, "웹 리뉴얼");
         String memberToken = addProjectMember(ownerToken, projectId, "게스트");
 
         // 오너가 작성자이자 담당자인 이슈
@@ -190,7 +121,7 @@ class NotificationApiTest {
     @DisplayName("읽음 처리와 안 읽은 수")
     void readAndCount() throws Exception {
         String ownerToken = newUserToken("오너");
-        long projectId = setUpProject(ownerToken);
+        long projectId = setUpProject(ownerToken, "웹 리뉴얼");
         String memberToken = addProjectMember(ownerToken, projectId, "게스트");
         createIssue(ownerToken, projectId, "로그인 오류", userIdOf(memberToken));
 
@@ -216,7 +147,7 @@ class NotificationApiTest {
     @DisplayName("남의 알림은 읽음 처리할 수 없다")
     void cannotReadSomeoneElsesNotification() throws Exception {
         String ownerToken = newUserToken("오너");
-        long projectId = setUpProject(ownerToken);
+        long projectId = setUpProject(ownerToken, "웹 리뉴얼");
         String memberToken = addProjectMember(ownerToken, projectId, "게스트");
 
         long memberNotificationId = objectMapper.readTree(

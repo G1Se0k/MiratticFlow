@@ -1,75 +1,21 @@
 package com.mirattic.flow.chat;
 
-import com.mirattic.flow.auth.dto.LoginRequest;
-import com.mirattic.flow.auth.dto.SignupRequest;
 import com.mirattic.flow.chat.dto.TopicRequest;
 import com.mirattic.flow.issue.dto.IssueRequest;
 import com.mirattic.flow.issue.dto.IssueStatusRequest;
 import com.mirattic.flow.issue.entity.IssueStatus;
-import com.mirattic.flow.project.dto.AddMemberRequest;
-import com.mirattic.flow.project.dto.ProjectRequest;
-import com.mirattic.flow.workspace.dto.WorkspaceRequest;
+import com.mirattic.flow.support.ApiTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.ResultActions;
-import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
-import tools.jackson.databind.ObjectMapper;
-
-import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** 주제 CRUD 권한과 시스템 메시지가 실제로 쌓이는지 확인한다. */
-@SpringBootTest
-@ActiveProfiles("test")
-@AutoConfigureMockMvc
-class TopicApiTest {
-
-    @Autowired MockMvc mockMvc;
-    @Autowired ObjectMapper objectMapper;
-
-    private String json(Object body) {
-        return objectMapper.writeValueAsString(body);
-    }
-
-    private String newUserToken() throws Exception {
-        String email = "t" + UUID.randomUUID().toString().substring(0, 8) + "@test.com";
-        mockMvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                .content(json(new SignupRequest(email, "password123", "테스터"))));
-        String body = mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content(json(new LoginRequest(email, "password123"))))
-                .andReturn().getResponse().getContentAsString();
-        return objectMapper.readTree(body).get("accessToken").asString();
-    }
-
-    private ResultActions authed(MockHttpServletRequestBuilder builder, String token) throws Exception {
-        return mockMvc.perform(builder.header("Authorization", "Bearer " + token));
-    }
-
-    private long id(String body) {
-        return objectMapper.readTree(body).get("id").asLong();
-    }
-
-    private long userIdOf(String token) throws Exception {
-        return id(authed(get("/api/users/me"), token).andReturn().getResponse().getContentAsString());
-    }
-
-    private long setUpProject(String token) throws Exception {
-        long workspaceId = id(authed(post("/api/workspaces").contentType(MediaType.APPLICATION_JSON)
-                .content(json(new WorkspaceRequest("팀", null))), token)
-                .andReturn().getResponse().getContentAsString());
-        return id(authed(post("/api/workspaces/{id}/projects", workspaceId).contentType(MediaType.APPLICATION_JSON)
-                .content(json(new ProjectRequest("프로젝트", null, null))), token)
-                .andReturn().getResponse().getContentAsString());
-    }
+class TopicApiTest extends ApiTestSupport {
 
     private long projectChatId(String token, long projectId) throws Exception {
         return id(authed(get("/api/projects/{id}/chat", projectId), token)
@@ -80,22 +26,6 @@ class TopicApiTest {
         return id(authed(post("/api/projects/{id}/issues", projectId).contentType(MediaType.APPLICATION_JSON)
                 .content(json(new IssueRequest(title, null, null, null, null, null))), token)
                 .andReturn().getResponse().getContentAsString());
-    }
-
-    private String addProjectMember(String ownerToken, long projectId) throws Exception {
-        String projectBody = authed(get("/api/projects/{id}", projectId), ownerToken)
-                .andReturn().getResponse().getContentAsString();
-        long workspaceId = objectMapper.readTree(projectBody).get("workspaceId").asLong();
-        String codeBody = authed(get("/api/workspaces/{id}/invite-code", workspaceId), ownerToken)
-                .andReturn().getResponse().getContentAsString();
-        String code = objectMapper.readTree(codeBody).get("code").asString();
-
-        String token = newUserToken();
-        authed(post("/api/invites/{code}/accept", code), token).andExpect(status().isOk());
-        authed(post("/api/projects/{id}/members", projectId).contentType(MediaType.APPLICATION_JSON)
-                .content(json(new AddMemberRequest(userIdOf(token)))), ownerToken)
-                .andExpect(status().isCreated());
-        return token;
     }
 
     // ----------------------------------------------------------------

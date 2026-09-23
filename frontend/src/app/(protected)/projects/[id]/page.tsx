@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { FormError, FormField } from '@/components/ui/FormField';
 import { Modal } from '@/components/ui/Modal';
-import { Spinner } from '@/components/ui/Spinner';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 import { useMe } from '@/hooks/useAuth';
 import { ProjectChatDock } from '@/components/chat/ProjectChatDock';
@@ -33,7 +33,7 @@ export default function ProjectDetailPage() {
   const [adding, setAdding] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  if (isPending) return <Spinner />;
+  if (isPending) return <ProjectPageSkeleton />;
   if (isError || !project) {
     return (
       <div className="flex flex-col items-center gap-4 py-16 text-center">
@@ -169,6 +169,34 @@ export default function ProjectDetailPage() {
   );
 }
 
+/**
+ * 화면 전체를 가리는 스피너 대신 실제 배치와 같은 모양을 먼저 그린다.
+ * 페이지 최상단의 isPending 이 모든 섹션을 막고 있어서, 각 섹션에 스켈레톤을 넣어도
+ * 여기까지 오지 않으면 보이지 않는다 — 게이트 자체를 바꿔야 효과가 있다.
+ */
+function ProjectPageSkeleton() {
+  return (
+    <div className="flex flex-col gap-8" role="status" aria-label="불러오는 중">
+      <div className="flex flex-col gap-2">
+        <Skeleton className="h-3 w-24" />
+        <Skeleton className="h-6 w-48" />
+        <Skeleton className="h-4 w-64" />
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {Array.from({ length: 4 }, (_, i) => (
+          <Skeleton key={i} className="h-[74px]" />
+        ))}
+      </div>
+      <div className="grid gap-4 lg:grid-cols-3">
+        {Array.from({ length: 3 }, (_, i) => (
+          <Skeleton key={i} className="h-[250px]" />
+        ))}
+      </div>
+      <Skeleton className="h-48" />
+    </div>
+  );
+}
+
 function EditModal({ open, onClose, project }: { open: boolean; onClose: () => void; project: Project }) {
   const { update } = useProjectMutations(project.id, project.workspaceId);
   const toast = useToast();
@@ -235,7 +263,7 @@ function AddMemberList({
   const { data: workspaceMembers, isPending } = useMembers(workspaceId);
   const candidates = workspaceMembers?.filter((m) => !joinedIds.includes(m.userId)) ?? [];
 
-  if (isPending) return <Spinner />;
+  if (isPending) return <ProjectPageSkeleton />;
   if (candidates.length === 0) {
     return <p className="text-sm text-slate-500">워크스페이스 멤버가 모두 참여 중입니다.</p>;
   }
