@@ -39,6 +39,18 @@ export default function SignupPage() {
         {signup.isPending ? '가입 중...' : '회원가입'}
       </Button>
 
+      <p className="text-center text-xs leading-relaxed text-slate-500">
+        회원가입 시{' '}
+        <Link href="/terms" className="underline underline-offset-2">
+          이용약관
+        </Link>
+        {' 과 '}
+        <Link href="/privacy" className="underline underline-offset-2">
+          개인정보처리방침
+        </Link>
+        {' 에 동의한 것으로 봅니다.'}
+      </p>
+
       <p className="text-center text-sm text-slate-500">
         이미 계정이 있으신가요?{' '}
         <Link href="/login" className="font-medium text-slate-900 underline dark:text-slate-100">
