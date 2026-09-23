@@ -1,6 +1,8 @@
 package com.mirattic.flow.chat.repository;
 
 import com.mirattic.flow.chat.entity.ChatMessage;
+import com.mirattic.flow.chat.entity.MessageType;
+import com.mirattic.flow.issue.dto.ActivityResponse;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -23,6 +25,19 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
               and (:before is null or m.id < :before)
             order by m.id desc""")
     List<ChatMessage> findPage(@Param("topicId") Long topicId, @Param("before") Long before, Limit limit);
+
+    /**
+     * 프로젝트 대시보드의 "최근 활동".
+     * 이슈 등록·상태 변경 같은 사건은 이미 SYSTEM 메시지로 쌓이고 있어서
+     * 활동 로그 테이블을 따로 두지 않고 이걸 읽는다.
+     */
+    @Query("""
+            select new com.mirattic.flow.issue.dto.ActivityResponse(m.content, m.createdAt)
+            from ChatMessage m
+            where m.topic.project.id = :projectId and m.type = :type
+            order by m.id desc""")
+    List<ActivityResponse> findRecentActivity(@Param("projectId") Long projectId,
+                                              @Param("type") MessageType type, Limit limit);
 
     @Modifying(clearAutomatically = true)
     @Query("delete from ChatMessage m where m.topic.issue.id = :issueId")

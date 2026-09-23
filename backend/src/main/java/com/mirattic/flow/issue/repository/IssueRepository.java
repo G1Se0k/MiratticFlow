@@ -1,5 +1,8 @@
 package com.mirattic.flow.issue.repository;
 
+import com.mirattic.flow.issue.dto.AssigneeCount;
+import com.mirattic.flow.issue.dto.PriorityCount;
+import com.mirattic.flow.issue.dto.StatusCount;
 import com.mirattic.flow.issue.entity.Issue;
 import com.mirattic.flow.issue.entity.IssuePriority;
 import com.mirattic.flow.issue.entity.IssueStatus;
@@ -9,6 +12,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+
+import java.util.List;
 
 import java.util.Optional;
 
@@ -41,6 +46,31 @@ public interface IssueRepository extends JpaRepository<Issue, Long> {
 
     @Query("select i from Issue i join fetch i.project join fetch i.reporter left join fetch i.assignee where i.id = :id")
     Optional<Issue> findByIdWithDetails(@Param("id") Long id);
+
+    // ---------------------------------------------------------------- 대시보드 집계
+    // 세 가지를 한 질의(group by status, priority, assignee)로 묶지 않는다.
+    // 조합의 곱이 나와서 화면이 다시 세야 하고, 0건인 조합은 결과에서 아예 빠진다.
+
+    @Query("""
+            select new com.mirattic.flow.issue.dto.StatusCount(i.status, count(i))
+            from Issue i where i.project.id = :projectId
+            group by i.status""")
+    List<StatusCount> countByStatus(@Param("projectId") Long projectId);
+
+    @Query("""
+            select new com.mirattic.flow.issue.dto.PriorityCount(i.priority, count(i))
+            from Issue i where i.project.id = :projectId
+            group by i.priority""")
+    List<PriorityCount> countByPriority(@Param("projectId") Long projectId);
+
+    /** 담당자 없는 이슈도 세야 하므로 left join 이다. 그 행은 userId·name 이 null 로 온다. */
+    @Query("""
+            select new com.mirattic.flow.issue.dto.AssigneeCount(a.id, a.name, count(i))
+            from Issue i left join i.assignee a
+            where i.project.id = :projectId
+            group by a.id, a.name
+            order by count(i) desc""")
+    List<AssigneeCount> countByAssignee(@Param("projectId") Long projectId);
 
     @Query("select coalesce(max(i.number), 0) from Issue i where i.project.id = :projectId")
     int findLastNumber(@Param("projectId") Long projectId);

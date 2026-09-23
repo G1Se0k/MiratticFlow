@@ -6,6 +6,7 @@ import com.mirattic.flow.issue.dto.IssueRequest;
 import com.mirattic.flow.issue.dto.IssueResponse;
 import com.mirattic.flow.issue.dto.IssueStatusRequest;
 import com.mirattic.flow.issue.dto.IssueSummaryResponse;
+import com.mirattic.flow.issue.dto.ProjectStatsResponse;
 import com.mirattic.flow.issue.entity.IssuePriority;
 import com.mirattic.flow.issue.entity.IssueStatus;
 import com.mirattic.flow.issue.service.IssueService;
@@ -35,6 +36,12 @@ public class IssueController {
             @RequestParam(required = false) String keyword,
             @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC) Pageable pageable) {
         return issueService.search(projectId, authUser.id(), status, priority, assigneeId, keyword, pageable);
+    }
+
+    /** 대시보드. 화면 하나가 한 번에 그려져야 해서 카드·차트·활동을 한 응답에 담는다. */
+    @GetMapping("/api/projects/{projectId}/stats")
+    public ProjectStatsResponse stats(@AuthenticationPrincipal AuthUser authUser, @PathVariable Long projectId) {
+        return issueService.stats(projectId, authUser.id());
     }
 
     @PostMapping("/api/projects/{projectId}/issues")

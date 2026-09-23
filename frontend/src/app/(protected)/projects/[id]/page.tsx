@@ -12,6 +12,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { useToast } from '@/components/ui/Toast';
 import { useMe } from '@/hooks/useAuth';
 import { ProjectChatDock } from '@/components/chat/ProjectChatDock';
+import { ProjectDashboard } from '@/components/dashboard/ProjectDashboard';
 import { useProject, useProjectMembers, useProjectMutations } from '@/hooks/useProjects';
 import { useMembers, useWorkspace } from '@/hooks/useWorkspaces';
 import type { Project, ProjectInput } from '@/lib/api/project';
@@ -74,6 +75,8 @@ export default function ProjectDetailPage() {
         <p className="text-sm text-slate-500">{project.description || '설명 없음'}</p>
         <p className="text-xs text-slate-400">만든 사람 {project.createdByName}</p>
       </header>
+
+      <ProjectDashboard projectId={projectId} />
 
       <IssueSection projectId={projectId} members={members ?? []} />
 

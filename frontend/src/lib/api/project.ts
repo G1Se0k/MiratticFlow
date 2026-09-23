@@ -1,3 +1,4 @@
+import type { IssuePriority, IssueStatus } from './issue';
 import { api } from './client';
 
 export type ProjectStatus = 'ACTIVE' | 'ARCHIVED';
@@ -39,6 +40,19 @@ export interface ProjectInput {
   status?: ProjectStatus;
 }
 
+export interface ProjectStats {
+  total: number;
+  inProgress: number;
+  done: number;
+  /** 내가 담당자인 이슈 수. */
+  mine: number;
+  byStatus: { status: IssueStatus; count: number }[];
+  byPriority: { priority: IssuePriority; count: number }[];
+  /** userId 가 null 이면 담당자 없음. 많은 순으로 온다. */
+  byAssignee: { userId: number | null; name: string | null; count: number }[];
+  recentActivity: { content: string; createdAt: string }[];
+}
+
 export const projectApi = {
   list: (workspaceId: number) => api.get<ProjectSummary[]>(`/api/workspaces/${workspaceId}/projects`),
   create: (workspaceId: number, body: ProjectInput) =>
@@ -47,6 +61,8 @@ export const projectApi = {
   get: (id: number) => api.get<Project>(`/api/projects/${id}`),
   update: (id: number, body: ProjectInput) => api.patch<Project>(`/api/projects/${id}`, body),
   remove: (id: number) => api.delete<void>(`/api/projects/${id}`),
+
+  stats: (id: number) => api.get<ProjectStats>(`/api/projects/${id}/stats`),
 
   members: (id: number) => api.get<ProjectMember[]>(`/api/projects/${id}/members`),
   addMember: (id: number, userId: number) =>

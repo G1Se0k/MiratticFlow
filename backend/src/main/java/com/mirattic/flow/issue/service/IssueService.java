@@ -7,7 +7,13 @@ import com.mirattic.flow.comment.repository.CommentRepository;
 import com.mirattic.flow.global.exception.BusinessException;
 import com.mirattic.flow.global.response.ErrorCode;
 import com.mirattic.flow.global.response.PageResponse;
+import com.mirattic.flow.chat.entity.MessageType;
+import com.mirattic.flow.issue.dto.ActivityResponse;
+import com.mirattic.flow.issue.dto.AssigneeCount;
 import com.mirattic.flow.issue.dto.IssueRequest;
+import com.mirattic.flow.issue.dto.PriorityCount;
+import com.mirattic.flow.issue.dto.ProjectStatsResponse;
+import com.mirattic.flow.issue.dto.StatusCount;
 import com.mirattic.flow.issue.dto.IssueResponse;
 import com.mirattic.flow.issue.dto.IssueSummaryResponse;
 import com.mirattic.flow.issue.entity.Issue;
@@ -22,9 +28,16 @@ import com.mirattic.flow.project.service.ProjectService;
 import com.mirattic.flow.user.entity.User;
 import com.mirattic.flow.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -40,6 +53,9 @@ public class IssueService {
     private final ProjectService projectService;
     private final ProjectMemberRepository projectMemberRepository;
     private final UserRepository userRepository;
+
+    /** 최근 활동은 스크롤 없이 훑을 수 있는 만큼만. */
+    private static final int ACTIVITY_SIZE = 10;
 
     // ---------------------------------------------------------------- 조회
 
@@ -60,6 +76,49 @@ public class IssueService {
     public IssueResponse findOne(Long issueId, Long userId) {
         Issue issue = requireReadable(issueId, userId);
         return IssueResponse.of(issue, canDelete(issue, userId));
+    }
+
+    /**
+     * 대시보드 집계. 세는 일은 전부 DB 가 한다 —
+     * 이슈를 다 불러와 자바에서 세면 이슈가 늘어날수록 그대로 무너진다.
+     */
+    public ProjectStatsResponse stats(Long projectId, Long userId) {
+        projectService.requireAccess(projectId, userId);
+
+        List<StatusCount> byStatus = fillMissing(
+                issueRepository.countByStatus(projectId), IssueStatus.values(),
+                StatusCount::status, status -> new StatusCount(status, 0));
+        List<PriorityCount> byPriority = fillMissing(
+                issueRepository.countByPriority(projectId), IssuePriority.values(),
+                PriorityCount::priority, priority -> new PriorityCount(priority, 0));
+        List<AssigneeCount> byAssignee = issueRepository.countByAssignee(projectId);
+
+        return new ProjectStatsResponse(
+                byStatus.stream().mapToLong(StatusCount::count).sum(),
+                countOf(byStatus, IssueStatus.IN_PROGRESS),
+                countOf(byStatus, IssueStatus.DONE),
+                byAssignee.stream()
+                        .filter(assignee -> userId.equals(assignee.userId()))
+                        .mapToLong(AssigneeCount::count).findFirst().orElse(0),
+                byStatus,
+                byPriority,
+                byAssignee,
+                chatMessageRepository.findRecentActivity(projectId, MessageType.SYSTEM, Limit.of(ACTIVITY_SIZE)));
+    }
+
+    /**
+     * 0건인 값은 group by 결과에 아예 없다. 그대로 그리면 "완료 0건"일 때 조각이 사라져
+     * 차트 모양이 매번 달라진다. 빠진 것을 0으로 채워 항상 같은 축을 갖게 한다.
+     */
+    private static <T, E> List<T> fillMissing(List<T> counted, E[] all,
+                                              Function<T, E> keyOf, Function<E, T> zero) {
+        Map<E, T> found = counted.stream().collect(Collectors.toMap(keyOf, Function.identity()));
+        return Arrays.stream(all).map(value -> found.getOrDefault(value, zero.apply(value))).toList();
+    }
+
+    private static long countOf(List<StatusCount> counts, IssueStatus status) {
+        return counts.stream().filter(count -> count.status() == status)
+                .mapToLong(StatusCount::count).findFirst().orElse(0);
     }
 
     // ---------------------------------------------------------------- 쓰기

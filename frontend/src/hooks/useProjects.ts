@@ -7,6 +7,7 @@ export const projectKeys = {
   list: (workspaceId: number) => ['workspaces', workspaceId, 'projects'] as const,
   detail: (id: number) => ['projects', id] as const,
   members: (id: number) => ['projects', id, 'members'] as const,
+  stats: (id: number) => ['projects', id, 'stats'] as const,
 };
 
 export const useProjects = (workspaceId: number) =>
@@ -26,6 +27,14 @@ export function useCreateProject(workspaceId: number) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: projectKeys.list(workspaceId) }),
   });
 }
+
+/** 대시보드 집계. 이슈를 고치면 숫자가 달라지므로 오래 들고 있지 않는다. */
+export const useProjectStats = (id: number) =>
+  useQuery({
+    queryKey: projectKeys.stats(id),
+    queryFn: () => projectApi.stats(id),
+    enabled: id > 0,
+  });
 
 export function useProjectMutations(id: number, workspaceId?: number) {
   const queryClient = useQueryClient();

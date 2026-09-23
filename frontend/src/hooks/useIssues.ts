@@ -1,6 +1,8 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { QueryClient } from '@tanstack/react-query';
+import { projectKeys } from '@/hooks/useProjects';
 import { issueApi, type IssueFilter, type IssueInput, type IssueStatus } from '@/lib/api/issue';
 
 export const issueKeys = {
@@ -8,6 +10,16 @@ export const issueKeys = {
   lists: (projectId: number) => ['projects', projectId, 'issues'] as const,
   detail: (id: number) => ['issues', id] as const,
 };
+
+/**
+ * 이슈가 바뀌면 목록만 달라지는 게 아니라 대시보드 집계도 달라진다.
+ * 두 곳을 항상 같이 무효화해야 해서 한 군데에 모아 둔다 —
+ * 호출하는 쪽마다 적으면 언젠가 한 곳에서 빠지고, 숫자만 옛날 값으로 남는다.
+ */
+function refreshProjectIssues(queryClient: QueryClient, projectId: number) {
+  queryClient.invalidateQueries({ queryKey: issueKeys.lists(projectId) });
+  queryClient.invalidateQueries({ queryKey: projectKeys.stats(projectId) });
+}
 
 /** 필터가 쿼리 키에 들어가므로 조건을 바꾸면 자동으로 다시 조회된다. */
 export const useIssues = (projectId: number, filter: IssueFilter) =>
@@ -25,7 +37,7 @@ export function useCreateIssue(projectId: number) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: IssueInput) => issueApi.create(projectId, body),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: issueKeys.lists(projectId) }),
+    onSuccess: () => refreshProjectIssues(queryClient, projectId),
   });
 }
 
@@ -33,7 +45,7 @@ export function useIssueMutations(issueId: number, projectId: number) {
   const queryClient = useQueryClient();
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: issueKeys.detail(issueId) });
-    queryClient.invalidateQueries({ queryKey: issueKeys.lists(projectId) });
+    refreshProjectIssues(queryClient, projectId);
   };
 
   return {
@@ -47,7 +59,7 @@ export function useIssueMutations(issueId: number, projectId: number) {
       onSuccess: () => {
         // 지워진 이슈를 다시 불러오면 404 가 난다. 캐시에서 아예 뺀다.
         queryClient.removeQueries({ queryKey: issueKeys.detail(issueId) });
-        queryClient.invalidateQueries({ queryKey: issueKeys.lists(projectId) });
+        refreshProjectIssues(queryClient, projectId);
       },
     }),
   };
@@ -60,7 +72,7 @@ export function useQuickStatusChange(projectId: number) {
     mutationFn: ({ issueId, status }: { issueId: number; status: IssueStatus }) =>
       issueApi.changeStatus(issueId, status),
     onSuccess: (issue) => {
-      queryClient.invalidateQueries({ queryKey: issueKeys.lists(projectId) });
+      refreshProjectIssues(queryClient, projectId);
       queryClient.invalidateQueries({ queryKey: issueKeys.detail(issue.id) });
     },
   });
