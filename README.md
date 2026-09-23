@@ -39,7 +39,7 @@ cd frontend && cp .env.local.example .env.local && npm install && npm run dev   
 - [x] Phase 2 — 인증 (JWT)
 - [x] Phase 3 — 워크스페이스
 - [x] Phase 4 — 프로젝트
-- [ ] Phase 5 — 이슈
+- [x] Phase 5 — 이슈
 - [ ] Phase 6 — 댓글
 - [ ] Phase 7 — WebSocket 채팅
 - [ ] Phase 8 — 알림

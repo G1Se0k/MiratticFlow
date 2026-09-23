@@ -12,11 +12,12 @@ export const projectKeys = {
 export const useProjects = (workspaceId: number) =>
   useQuery({ queryKey: projectKeys.list(workspaceId), queryFn: () => projectApi.list(workspaceId) });
 
+/** id 는 부모 데이터(이슈 등)가 로딩되기 전엔 0 이다. 그때 요청하면 404 만 찍힌다. */
 export const useProject = (id: number) =>
-  useQuery({ queryKey: projectKeys.detail(id), queryFn: () => projectApi.get(id) });
+  useQuery({ queryKey: projectKeys.detail(id), queryFn: () => projectApi.get(id), enabled: id > 0 });
 
 export const useProjectMembers = (id: number) =>
-  useQuery({ queryKey: projectKeys.members(id), queryFn: () => projectApi.members(id) });
+  useQuery({ queryKey: projectKeys.members(id), queryFn: () => projectApi.members(id), enabled: id > 0 });
 
 export function useCreateProject(workspaceId: number) {
   const queryClient = useQueryClient();

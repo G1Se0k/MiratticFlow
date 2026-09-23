@@ -14,6 +14,7 @@ import { useMe } from '@/hooks/useAuth';
 import { useProject, useProjectMembers, useProjectMutations } from '@/hooks/useProjects';
 import { useMembers, useWorkspace } from '@/hooks/useWorkspaces';
 import type { Project, ProjectInput } from '@/lib/api/project';
+import { IssueSection } from './IssueSection';
 
 export default function ProjectDetailPage() {
   const projectId = Number(useParams<{ id: string }>().id);
@@ -72,6 +73,8 @@ export default function ProjectDetailPage() {
         <p className="text-sm text-slate-500">{project.description || '설명 없음'}</p>
         <p className="text-xs text-slate-400">만든 사람 {project.createdByName}</p>
       </header>
+
+      <IssueSection projectId={projectId} members={members ?? []} />
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
