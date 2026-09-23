@@ -1,5 +1,6 @@
 package com.mirattic.flow.issue.service;
 
+import com.mirattic.flow.chat.service.SystemMessageSender;
 import com.mirattic.flow.comment.repository.CommentRepository;
 import com.mirattic.flow.global.exception.BusinessException;
 import com.mirattic.flow.global.response.ErrorCode;
@@ -28,6 +29,7 @@ public class IssueService {
 
     private final IssueRepository issueRepository;
     private final CommentRepository commentRepository;
+    private final SystemMessageSender systemMessageSender;
     private final ProjectService projectService;
     private final ProjectMemberRepository projectMemberRepository;
     private final UserRepository userRepository;
@@ -69,6 +71,7 @@ public class IssueService {
                 findUser(userId),
                 request.dueDate()));
 
+        systemMessageSender.send(projectId, "%s님이 %s를 등록했습니다.".formatted(issue.getReporter().getName(), label(issue)));
         return IssueResponse.of(issue, true);
     }
 
@@ -76,6 +79,9 @@ public class IssueService {
     @Transactional
     public IssueResponse update(Long issueId, Long userId, IssueRequest request) {
         Issue issue = requireReadable(issueId, userId);
+        IssueStatus before = issue.getStatus();
+        User previousAssignee = issue.getAssignee();
+
         issue.update(
                 request.title(),
                 request.description(),
@@ -83,13 +89,25 @@ public class IssueService {
                 request.priority() != null ? request.priority() : issue.getPriority(),
                 findAssignee(issue.getProject().getId(), request.assigneeId()),
                 request.dueDate());
+
+        // 제목·설명이 바뀐 것까지 채팅에 흘리면 대화가 묻힌다. 팀이 알아야 할 두 가지만 알린다.
+        String actor = findUser(userId).getName();
+        if (before != issue.getStatus()) {
+            announceStatus(issue, actor);
+        }
+        if (!sameUser(previousAssignee, issue.getAssignee())) {
+            announceAssignee(issue, actor);
+        }
         return IssueResponse.of(issue, canDelete(issue, userId));
     }
 
     @Transactional
     public IssueResponse changeStatus(Long issueId, Long userId, IssueStatus status) {
         Issue issue = requireReadable(issueId, userId);
-        issue.changeStatus(status);
+        if (issue.getStatus() != status) {
+            issue.changeStatus(status);
+            announceStatus(issue, findUser(userId).getName());
+        }
         return IssueResponse.of(issue, canDelete(issue, userId));
     }
 
@@ -132,6 +150,33 @@ public class IssueService {
     private User findUser(Long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+    }
+
+    // ---------------------------------------------------------------- 시스템 메시지
+
+    /** "ISSUE-12" — 사용자에게 보이는 이슈 식별자. */
+    private static String label(Issue issue) {
+        return "ISSUE-" + issue.getNumber();
+    }
+
+    private void announceStatus(Issue issue, String actor) {
+        systemMessageSender.send(issue.getProject().getId(),
+                "%s님이 %s 상태를 %s로 변경했습니다.".formatted(actor, label(issue), issue.getStatus()));
+    }
+
+    private void announceAssignee(Issue issue, String actor) {
+        String assignee = issue.getAssignee() != null
+                ? issue.getAssignee().getName() + "님으로 지정했습니다."
+                : "없음으로 바꿨습니다.";
+        systemMessageSender.send(issue.getProject().getId(),
+                "%s님이 %s 담당자를 %s".formatted(actor, label(issue), assignee));
+    }
+
+    private static boolean sameUser(User a, User b) {
+        if (a == null || b == null) {
+            return a == b;
+        }
+        return a.getId().equals(b.getId());
     }
 
     private static String blankToNull(String value) {

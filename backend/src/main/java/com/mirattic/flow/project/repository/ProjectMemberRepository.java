@@ -2,6 +2,7 @@ package com.mirattic.flow.project.repository;
 
 import com.mirattic.flow.project.entity.ProjectMember;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -25,7 +26,9 @@ public interface ProjectMemberRepository extends JpaRepository<ProjectMember, Lo
     @Query("select m.project.id, count(m) from ProjectMember m where m.project.id in :projectIds group by m.project.id")
     List<Object[]> countByProjectIds(@Param("projectIds") Collection<Long> projectIds);
 
-    void deleteByProjectId(Long projectId);
+    @Modifying
+    @Query("delete from ProjectMember m where m.project.id = :projectId")
+    void deleteByProjectId(@Param("projectId") Long projectId);
 
     @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true)
     @Query("delete from ProjectMember m where m.project.workspace.id = :workspaceId")

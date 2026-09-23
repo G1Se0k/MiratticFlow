@@ -2,6 +2,7 @@ package com.mirattic.flow.project.repository;
 
 import com.mirattic.flow.project.entity.Project;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -25,5 +26,7 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     @Query("select p from Project p join fetch p.workspace join fetch p.createdBy where p.id = :id")
     java.util.Optional<Project> findByIdWithDetails(@Param("id") Long id);
 
-    void deleteByWorkspaceId(Long workspaceId);
+    @Modifying
+    @Query("delete from Project p where p.workspace.id = :workspaceId")
+    void deleteByWorkspaceId(@Param("workspaceId") Long workspaceId);
 }

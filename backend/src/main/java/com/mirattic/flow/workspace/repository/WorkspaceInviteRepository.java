@@ -3,6 +3,7 @@ package com.mirattic.flow.workspace.repository;
 import com.mirattic.flow.workspace.entity.InviteType;
 import com.mirattic.flow.workspace.entity.WorkspaceInvite;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -21,5 +22,7 @@ public interface WorkspaceInviteRepository extends JpaRepository<WorkspaceInvite
 
     boolean existsByCode(String code);
 
-    void deleteByWorkspaceId(Long workspaceId);
+    @Modifying
+    @Query("delete from WorkspaceInvite i where i.workspace.id = :workspaceId")
+    void deleteByWorkspaceId(@Param("workspaceId") Long workspaceId);
 }

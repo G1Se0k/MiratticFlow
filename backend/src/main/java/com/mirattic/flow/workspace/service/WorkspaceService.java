@@ -1,5 +1,7 @@
 package com.mirattic.flow.workspace.service;
 
+import com.mirattic.flow.chat.repository.ChatMessageRepository;
+import com.mirattic.flow.chat.repository.TopicRepository;
 import com.mirattic.flow.comment.repository.CommentRepository;
 import com.mirattic.flow.global.exception.BusinessException;
 import com.mirattic.flow.issue.repository.IssueRepository;
@@ -38,6 +40,8 @@ public class WorkspaceService {
     private final ProjectMemberRepository projectMemberRepository;
     private final IssueRepository issueRepository;
     private final CommentRepository commentRepository;
+    private final TopicRepository topicRepository;
+    private final ChatMessageRepository chatMessageRepository;
 
     // ---------------------------------------------------------------- 권한 검사
     // 워크스페이스에 속한 모든 기능이 이 두 메서드를 거친다.
@@ -107,6 +111,8 @@ public class WorkspaceService {
     public void delete(Long workspaceId, Long userId) {
         requireOwner(workspaceId, userId);
         // 자식부터 지운다. FK 제약에 걸리지 않도록 순서가 중요하다.
+        chatMessageRepository.deleteByWorkspaceId(workspaceId);
+        topicRepository.deleteByWorkspaceId(workspaceId);
         commentRepository.deleteByWorkspaceId(workspaceId);
         issueRepository.deleteByWorkspaceId(workspaceId);
         projectMemberRepository.deleteByWorkspaceId(workspaceId);

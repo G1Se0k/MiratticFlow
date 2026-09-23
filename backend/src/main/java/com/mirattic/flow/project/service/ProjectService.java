@@ -1,5 +1,9 @@
 package com.mirattic.flow.project.service;
 
+import com.mirattic.flow.chat.entity.Topic;
+import com.mirattic.flow.chat.repository.ChatMessageRepository;
+import com.mirattic.flow.chat.repository.TopicRepository;
+import com.mirattic.flow.chat.service.SystemMessageSender;
 import com.mirattic.flow.comment.repository.CommentRepository;
 import com.mirattic.flow.global.exception.BusinessException;
 import com.mirattic.flow.global.response.ErrorCode;
@@ -34,6 +38,10 @@ public class ProjectService {
     private final WorkspaceService workspaceService;
     private final IssueRepository issueRepository;
     private final CommentRepository commentRepository;
+    // TopicService 가 아니라 리포지토리를 직접 쓴다. TopicService 는 ProjectService 를 의존하므로 순환이 된다.
+    private final TopicRepository topicRepository;
+    private final ChatMessageRepository chatMessageRepository;
+    private final SystemMessageSender systemMessageSender;
 
     // ---------------------------------------------------------------- 권한 검사
     // 워크스페이스와 같은 방식으로 한 곳에 모은다. Phase 5(이슈)·7(채팅)도 requireAccess 를 거친다.
@@ -81,6 +89,8 @@ public class ProjectService {
 
         // 만든 사람은 바로 참여자가 된다. 그래야 이슈 담당자로 지정될 수 있다.
         memberRepository.save(ProjectMember.join(project, user));
+        // 빈 채팅 화면을 보여주지 않기 위해 기본 주제를 하나 만들어 둔다.
+        topicRepository.save(Topic.create(project, "일반", "프로젝트 전반에 대한 이야기", user));
 
         return ProjectResponse.of(project, true);
     }
@@ -120,6 +130,8 @@ public class ProjectService {
     public void delete(Long projectId, Long userId) {
         requireManager(projectId, userId);
         // 자식 먼저 — FK 제약
+        chatMessageRepository.deleteByProjectId(projectId);
+        topicRepository.deleteByProjectId(projectId);
         commentRepository.deleteByProjectId(projectId);
         issueRepository.deleteByProjectId(projectId);
         memberRepository.deleteByProjectId(projectId);
@@ -148,6 +160,7 @@ public class ProjectService {
         }
         ProjectMember member = memberRepository.save(
                 ProjectMember.join(project, workspaceService.findUser(targetUserId)));
+        systemMessageSender.send(projectId, member.getUser().getName() + "님이 참여했습니다.");
         return ProjectMemberResponse.from(member);
     }
 

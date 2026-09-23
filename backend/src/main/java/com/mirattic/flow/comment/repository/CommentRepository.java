@@ -18,7 +18,9 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
     @Query("select c from Comment c join fetch c.issue join fetch c.author where c.id = :id")
     Optional<Comment> findByIdWithDetails(@Param("id") Long id);
 
-    void deleteByIssueId(Long issueId);
+    @Modifying
+    @Query("delete from Comment c where c.issue.id = :issueId")
+    void deleteByIssueId(@Param("issueId") Long issueId);
 
     // 상위 엔티티를 지울 때 한 번에 정리한다. 단건 삭제를 반복하면 댓글 수만큼 delete 가 나간다.
     @Modifying(clearAutomatically = true)

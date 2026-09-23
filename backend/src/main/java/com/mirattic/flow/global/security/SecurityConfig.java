@@ -42,6 +42,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/auth/signup", "/api/auth/login", "/api/auth/reissue", "/api/auth/logout").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/oauth/*").permitAll()
+                        // WebSocket 핸드셰이크는 익명으로 통과시킨다.
+                        // 인증은 STOMP CONNECT 프레임에서 StompAuthInterceptor 가 한다.
+                        .requestMatchers("/ws/**").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(handler -> handler
                         .authenticationEntryPoint(securityExceptionHandlers.entryPoint())

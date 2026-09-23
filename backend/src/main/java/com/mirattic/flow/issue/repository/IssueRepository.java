@@ -6,6 +6,7 @@ import com.mirattic.flow.issue.entity.IssueStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -44,7 +45,9 @@ public interface IssueRepository extends JpaRepository<Issue, Long> {
     @Query("select coalesce(max(i.number), 0) from Issue i where i.project.id = :projectId")
     int findLastNumber(@Param("projectId") Long projectId);
 
-    void deleteByProjectId(Long projectId);
+    @Modifying
+    @Query("delete from Issue i where i.project.id = :projectId")
+    void deleteByProjectId(@Param("projectId") Long projectId);
 
     /** 워크스페이스를 지울 때 한 번에 정리한다. */
     @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true)

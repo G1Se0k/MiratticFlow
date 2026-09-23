@@ -3,6 +3,7 @@ package com.mirattic.flow.workspace.repository;
 import com.mirattic.flow.workspace.entity.WorkspaceMember;
 import com.mirattic.flow.workspace.entity.WorkspaceRole;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -23,5 +24,7 @@ public interface WorkspaceMemberRepository extends JpaRepository<WorkspaceMember
 
     long countByWorkspaceIdAndRole(Long workspaceId, WorkspaceRole role);
 
-    void deleteByWorkspaceId(Long workspaceId);
+    @Modifying
+    @Query("delete from WorkspaceMember m where m.workspace.id = :workspaceId")
+    void deleteByWorkspaceId(@Param("workspaceId") Long workspaceId);
 }
