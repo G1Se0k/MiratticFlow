@@ -1,6 +1,7 @@
 package com.mirattic.flow.workspace.service;
 
 import com.mirattic.flow.global.exception.BusinessException;
+import com.mirattic.flow.issue.repository.IssueRepository;
 import com.mirattic.flow.project.repository.ProjectMemberRepository;
 import com.mirattic.flow.project.repository.ProjectRepository;
 import com.mirattic.flow.global.response.ErrorCode;
@@ -34,6 +35,7 @@ public class WorkspaceService {
     // 워크스페이스를 지우면 그 안의 프로젝트도 함께 사라져야 한다.
     private final ProjectRepository projectRepository;
     private final ProjectMemberRepository projectMemberRepository;
+    private final IssueRepository issueRepository;
 
     // ---------------------------------------------------------------- 권한 검사
     // 워크스페이스에 속한 모든 기능이 이 두 메서드를 거친다.
@@ -103,6 +105,7 @@ public class WorkspaceService {
     public void delete(Long workspaceId, Long userId) {
         requireOwner(workspaceId, userId);
         // 자식부터 지운다. FK 제약에 걸리지 않도록 순서가 중요하다.
+        issueRepository.deleteByWorkspaceId(workspaceId);
         projectMemberRepository.deleteByWorkspaceId(workspaceId);
         projectRepository.deleteByWorkspaceId(workspaceId);
         inviteRepository.deleteByWorkspaceId(workspaceId);
