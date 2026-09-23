@@ -16,3 +16,19 @@
 
 # 구현 기록 (로컬 전용)
 docs/phases/
+
+# 인증서·개인키 (실수로 저장소에 두는 순간 공개된다)
+*.pem
+*.key
+*.crt
+*.p12
+*.jks
+
+# WebStorm HTTP 클라이언트의 비공개 환경변수 — 토큰이 들어간다
+http-client.private.env.json
+
+# 에디터 (.idea 는 위에 있음)
+.vscode/
+
+# 루트에서 npm 을 실행한 경우 (frontend/ 는 자체 .gitignore 가 처리)
+/node_modules/
