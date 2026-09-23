@@ -26,6 +26,10 @@ public interface ProjectMemberRepository extends JpaRepository<ProjectMember, Lo
     @Query("select m.project.id, count(m) from ProjectMember m where m.project.id in :projectIds group by m.project.id")
     List<Object[]> countByProjectIds(@Param("projectIds") Collection<Long> projectIds);
 
+    @Modifying(clearAutomatically = true)
+    @Query("delete from ProjectMember m where m.user.id = :userId")
+    void deleteByUserId(@Param("userId") Long userId);
+
     @Modifying
     @Query("delete from ProjectMember m where m.project.id = :projectId")
     void deleteByProjectId(@Param("projectId") Long projectId);

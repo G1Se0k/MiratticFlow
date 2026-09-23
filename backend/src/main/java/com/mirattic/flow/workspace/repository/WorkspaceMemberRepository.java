@@ -24,6 +24,13 @@ public interface WorkspaceMemberRepository extends JpaRepository<WorkspaceMember
 
     long countByWorkspaceIdAndRole(Long workspaceId, WorkspaceRole role);
 
+    /** 탈퇴 시 "내가 유일한 관리자인 워크스페이스"를 찾기 위한 조회. */
+    List<WorkspaceMember> findAllByUserIdAndRole(Long userId, WorkspaceRole role);
+
+    @Modifying(clearAutomatically = true)
+    @Query("delete from WorkspaceMember m where m.user.id = :userId")
+    void deleteByUserId(@Param("userId") Long userId);
+
     @Modifying
     @Query("delete from WorkspaceMember m where m.workspace.id = :workspaceId")
     void deleteByWorkspaceId(@Param("workspaceId") Long workspaceId);

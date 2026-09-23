@@ -83,4 +83,9 @@ public interface IssueRepository extends JpaRepository<Issue, Long> {
     @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true)
     @Query("delete from Issue i where i.project.workspace.id = :workspaceId")
     void deleteByWorkspaceId(@Param("workspaceId") Long workspaceId);
+
+    /** 탈퇴한 사용자가 담당 중이던 이슈는 미배정으로 되돌린다. */
+    @Modifying(clearAutomatically = true)
+    @Query("update Issue i set i.assignee = null where i.assignee.id = :userId")
+    int unassignByUserId(@Param("userId") Long userId);
 }

@@ -40,4 +40,14 @@ export const authApi = {
   },
 
   getMe: () => api.get<UserResponse>('/api/users/me'),
+
+  /**
+   * 회원 탈퇴.
+   * 로그아웃과 달리 성공했을 때만 토큰을 버린다.
+   * 실패한 요청에도 토큰을 지우면 계정은 남았는데 로그인만 풀려 아무것도 못 하는 상태가 된다.
+   */
+  async withdraw(password: string | null) {
+    await api.delete<void>('/api/users/me', { password });
+    tokens.clear();
+  },
 };

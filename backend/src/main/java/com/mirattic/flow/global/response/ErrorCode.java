@@ -14,6 +14,10 @@ public enum ErrorCode {
     LAST_OWNER(HttpStatus.BAD_REQUEST, "마지막 관리자는 나가거나 제외될 수 없습니다. 다른 멤버를 관리자로 지정해주세요."),
     CANNOT_CHANGE_OWN_ROLE(HttpStatus.BAD_REQUEST, "자신의 역할은 변경할 수 없습니다."),
     PROJECT_CHAT_FIXED(HttpStatus.BAD_REQUEST, "프로젝트 채팅은 수정하거나 삭제할 수 없습니다."),
+    // 401 이 아니다. 이미 로그인된 상태이고 다시 확인한 입력값이 틀린 것뿐이다.
+    // 401 로 내려보내면 클라이언트가 토큰 만료로 오해하고 재발급을 시도한다.
+    PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, "비밀번호가 올바르지 않습니다."),
+    OWNER_WORKSPACE_EXISTS(HttpStatus.BAD_REQUEST, "혼자 관리자인 워크스페이스가 있어 탈퇴할 수 없습니다. 다른 멤버를 관리자로 지정하거나 워크스페이스를 삭제해주세요."),
 
     // 401
     LOGIN_FAILED(HttpStatus.UNAUTHORIZED, "이메일 또는 비밀번호가 올바르지 않습니다."),

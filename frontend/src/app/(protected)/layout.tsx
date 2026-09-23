@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, type ReactNode } from 'react';
 import { NotificationBell } from '@/components/notification/NotificationBell';
@@ -42,7 +43,12 @@ export default function ProtectedLayout({ children }: { children: ReactNode }) {
           <Logo size="sm" href="/workspaces" />
           <div className="flex items-center gap-2">
             <NotificationBell />
-            <span className="hidden text-sm text-slate-500 sm:inline">{user.name}</span>
+            <Link
+              href="/account"
+              className="hidden text-sm text-slate-500 hover:text-slate-900 sm:inline dark:hover:text-slate-100"
+            >
+              {user.name}
+            </Link>
             <Button variant="ghost" size="sm" onClick={() => logout.mutate()} disabled={logout.isPending}>
               로그아웃
             </Button>

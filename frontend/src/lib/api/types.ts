@@ -2,8 +2,10 @@
 
 export interface UserResponse {
   id: number;
-  email: string;
+  /** 소셜 회원은 이메일을 못 받았을 수 있다. */
+  email: string | null;
   name: string;
+  provider: 'LOCAL' | 'KAKAO' | 'NAVER';
   createdAt: string;
 }
 

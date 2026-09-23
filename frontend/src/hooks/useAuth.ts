@@ -77,6 +77,20 @@ export function useOAuthLogin() {
   });
 }
 
+/** 탈퇴는 로그아웃과 뒷정리가 같다. 토큰을 버리고 캐시를 비운 뒤 로그인 화면으로 보낸다. */
+export function useWithdraw() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (password: string | null) => authApi.withdraw(password),
+    onSuccess: () => {
+      queryClient.clear();
+      router.replace('/login?withdraw=success');
+    },
+  });
+}
+
 export function useLogout() {
   const router = useRouter();
   const queryClient = useQueryClient();

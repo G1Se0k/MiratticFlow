@@ -88,5 +88,5 @@ export const api = {
   get: <T>(path: string, auth = true) => request<T>(path, { auth }),
   post: <T>(path: string, body?: unknown, auth = true) => request<T>(path, { method: 'POST', body, auth }),
   patch: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body }),
-  delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  delete: <T>(path: string, body?: unknown) => request<T>(path, { method: 'DELETE', body }),
 };
