@@ -47,6 +47,20 @@ export function useUpdateWorkspace(id: number) {
   });
 }
 
+export function useDeleteWorkspace(id: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => workspaceApi.remove(id),
+    onSuccess: () => {
+      // exact 를 빼면 ['workspaces', id, ...] 하위 쿼리까지 무효화되고,
+      // 아직 화면에 남아 있는 상세·멤버 쿼리가 방금 지운 워크스페이스를 다시 조회해 403 을 받는다.
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.all, exact: true });
+      // 상세·멤버·초대·프로젝트 캐시는 되살릴 게 없으므로 버린다 (키 접두어가 같아 한 번에 지워진다).
+      queryClient.removeQueries({ queryKey: workspaceKeys.detail(id) });
+    },
+  });
+}
+
 export function useMemberMutations(id: number) {
   const queryClient = useQueryClient();
   const refresh = () => queryClient.invalidateQueries({ queryKey: workspaceKeys.members(id) });

@@ -1,5 +1,7 @@
 package com.mirattic.flow.workspace;
 
+import com.mirattic.flow.comment.dto.CommentRequest;
+import com.mirattic.flow.issue.dto.IssueRequest;
 import com.mirattic.flow.workspace.dto.RoleRequest;
 import com.mirattic.flow.workspace.dto.WorkspaceRequest;
 import com.mirattic.flow.workspace.entity.WorkspaceRole;
@@ -79,6 +81,59 @@ class WorkspaceApiTest extends ApiTestSupport {
                 .content(json(new WorkspaceRequest("바꿀이름", null))), memberToken)
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("NOT_WORKSPACE_OWNER"));
+    }
+
+    @Test
+    @DisplayName("MEMBER 는 워크스페이스를 삭제할 수 없다")
+    void memberCannotDelete() throws Exception {
+        String ownerToken = newUserToken();
+        long workspaceId = createWorkspace(ownerToken, "우리팀");
+        String memberToken = newUserToken();
+        authed(post("/api/invites/{code}/accept", joinCode(ownerToken, workspaceId)), memberToken)
+                .andExpect(status().isOk());
+
+        authed(delete("/api/workspaces/{id}", workspaceId), memberToken)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("NOT_WORKSPACE_OWNER"));
+
+        authed(get("/api/workspaces/{id}", workspaceId), ownerToken).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("OWNER 가 워크스페이스를 지우면 프로젝트·이슈·댓글까지 함께 사라지고 멤버도 볼 수 없다")
+    void ownerDeletesWorkspaceWithContents() throws Exception {
+        String ownerToken = newUserToken();
+        long workspaceId = createWorkspace(ownerToken, "지울팀");
+        String memberToken = newUserToken();
+        authed(post("/api/invites/{code}/accept", joinCode(ownerToken, workspaceId)), memberToken)
+                .andExpect(status().isOk());
+
+        // 프로젝트를 만들면 기본 채팅 주제와 참여자가 함께 생긴다. 자식 삭제 순서를 실제 FK 로 확인하기 위한 준비다.
+        long projectId = createProject(ownerToken, workspaceId, "지울프로젝트");
+        long issueId = id(bodyOf(authed(post("/api/projects/{id}/issues", projectId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(new IssueRequest("버그", null, null, null, null, null))), ownerToken)
+                .andExpect(status().isCreated())));
+        authed(post("/api/issues/{id}/comments", issueId).contentType(MediaType.APPLICATION_JSON)
+                .content(json(new CommentRequest("고칠게요"))), ownerToken)
+                .andExpect(status().isCreated());
+
+        authed(delete("/api/workspaces/{id}", workspaceId), ownerToken)
+                .andExpect(status().isNoContent());
+
+        authed(get("/api/issues/{id}", issueId), ownerToken)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ISSUE_NOT_FOUND"));
+        authed(get("/api/projects/{id}", projectId), ownerToken)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("PROJECT_NOT_FOUND"));
+        // 멤버십 행까지 지워졌으므로 멤버가 아닌 사람과 똑같이 403 이다 (존재 여부를 알려주지 않는다).
+        authed(get("/api/workspaces/{id}", workspaceId), memberToken)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("NOT_WORKSPACE_MEMBER"));
+        authed(get("/api/workspaces"), memberToken)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
     }
 
     // ---------------------------------------------------------------- 초대 링크

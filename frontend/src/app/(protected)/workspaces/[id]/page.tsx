@@ -17,6 +17,7 @@ import {
   useUpdateWorkspace,
   useInviteMutations,
   useJoinCode,
+  useDeleteWorkspace,
   useMemberMutations,
   useMembers,
   useWorkspace,
@@ -44,6 +45,7 @@ export default function WorkspaceDetailPage() {
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [creatingProject, setCreatingProject] = useState(false);
   const [editingWorkspace, setEditingWorkspace] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   if (isPending) return <Spinner />;
   if (isError || !workspace) {
@@ -224,10 +226,15 @@ export default function WorkspaceDetailPage() {
         </ul>
       </section>
 
-      <section>
+      <section className="flex flex-wrap gap-2">
         <Button variant="danger" size="sm" onClick={() => setConfirmLeave(true)}>
           워크스페이스 나가기
         </Button>
+        {isOwner && (
+          <Button variant="danger" size="sm" onClick={() => setConfirmDelete(true)}>
+            워크스페이스 삭제
+          </Button>
+        )}
       </section>
 
       <CreateProjectModal
@@ -265,6 +272,11 @@ export default function WorkspaceDetailPage() {
           </Button>
         </div>
       </Modal>
+      <DeleteWorkspaceModal
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        workspace={workspace}
+      />
     </div>
   );
 }
@@ -404,6 +416,66 @@ function WorkspaceSettingsModal({
           </Button>
         </div>
       </form>
+    </Modal>
+  );
+}
+
+/**
+ * 워크스페이스 삭제. 프로젝트·이슈·댓글·채팅이 전부 함께 사라지므로
+ * 프로젝트 삭제처럼 버튼 한 번으로 끝내지 않고 이름을 직접 입력받는다 (/account 탈퇴와 같은 방식).
+ */
+function DeleteWorkspaceModal({
+  open,
+  onClose,
+  workspace,
+}: {
+  open: boolean;
+  onClose: () => void;
+  workspace: Workspace;
+}) {
+  const remove = useDeleteWorkspace(workspace.id);
+  const router = useRouter();
+  const toast = useToast();
+  const [confirmName, setConfirmName] = useState('');
+
+  const close = () => {
+    setConfirmName('');
+    onClose();
+  };
+
+  return (
+    <Modal open={open} onClose={close} title="워크스페이스를 삭제할까요?">
+      <div className="flex flex-col gap-4">
+        <p className="text-sm text-slate-500">
+          이 워크스페이스의 프로젝트와 이슈, 댓글, 채팅이 모두 삭제되고 되돌릴 수 없습니다. 멤버도 접근할 수 없게 됩니다.
+        </p>
+        <FormField
+          label="확인을 위해 워크스페이스 이름을 입력해주세요"
+          placeholder={workspace.name}
+          value={confirmName}
+          onChange={(e) => setConfirmName(e.target.value)}
+        />
+        {remove.isError && <FormError>{remove.error.message}</FormError>}
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={close}>
+            취소
+          </Button>
+          <Button
+            variant="danger"
+            disabled={confirmName !== workspace.name || remove.isPending}
+            onClick={() =>
+              remove.mutate(undefined, {
+                onSuccess: () => {
+                  toast('워크스페이스를 삭제했습니다.');
+                  router.replace('/workspaces');
+                },
+              })
+            }
+          >
+            삭제
+          </Button>
+        </div>
+      </div>
     </Modal>
   );
 }
