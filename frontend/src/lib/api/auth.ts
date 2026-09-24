@@ -8,6 +8,14 @@ export interface SignupPayload {
   name: string;
 }
 
+/** 보낸 필드만 바뀐다. 이메일 · 비밀번호를 바꿀 때는 currentPassword 가 필요하다. */
+export interface UpdateMePayload {
+  name?: string;
+  email?: string;
+  currentPassword?: string;
+  newPassword?: string;
+}
+
 export interface LoginPayload {
   email: string;
   password: string;
@@ -40,6 +48,17 @@ export const authApi = {
   },
 
   getMe: () => api.get<UserResponse>('/api/users/me'),
+
+  /**
+   * 계정 정보 수정.
+   * 비밀번호를 바꾸면 서버가 이 계정의 refresh 토큰을 전부 지운다 — 이 세션도 더는 재발급받지 못한다.
+   * 그대로 두면 액세스 토큰이 만료되는 15분 뒤에 영문도 모르고 튕기므로, 바로 토큰을 버리고 다시 로그인하게 한다.
+   */
+  async updateMe(payload: UpdateMePayload) {
+    const user = await api.patch<UserResponse>('/api/users/me', payload);
+    if (payload.newPassword) tokens.clear();
+    return user;
+  },
 
   /**
    * 회원 탈퇴.

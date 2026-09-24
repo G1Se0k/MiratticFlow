@@ -30,6 +30,11 @@ function LoginForm() {
           탈퇴가 완료되었습니다. 그동안 이용해주셔서 감사합니다.
         </p>
       )}
+      {searchParams.get('password') === 'changed' && (
+        <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+          비밀번호를 변경했습니다. 새 비밀번호로 다시 로그인해주세요.
+        </p>
+      )}
       {searchParams.get('signup') === 'success' && (
         <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
           가입이 완료되었습니다. 로그인해주세요.

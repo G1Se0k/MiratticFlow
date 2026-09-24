@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { authApi, type LoginPayload, type SignupPayload } from '@/lib/api/auth';
+import { authApi, type LoginPayload, type SignupPayload, type UpdateMePayload } from '@/lib/api/auth';
 import { ApiError } from '@/lib/api/types';
 import { tokens } from '@/lib/auth/tokens';
 
@@ -73,6 +73,28 @@ export function useOAuthLogin() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
       router.replace(redirectTo);
+    },
+  });
+}
+
+/**
+ * 계정 정보 수정.
+ * 이름 · 이메일만 바꿨으면 응답으로 온 사용자를 캐시에 그대로 넣는다 (다시 조회할 이유가 없다).
+ * 비밀번호를 바꿨으면 세션이 끊겼으므로 로그인 화면으로 보낸다.
+ */
+export function useUpdateMe() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: UpdateMePayload) => authApi.updateMe(payload),
+    onSuccess: (user, payload) => {
+      if (payload.newPassword) {
+        queryClient.clear();
+        router.replace('/login?password=changed');
+        return;
+      }
+      queryClient.setQueryData(ME_QUERY_KEY, user);
     },
   });
 }

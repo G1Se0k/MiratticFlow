@@ -17,6 +17,7 @@ public enum ErrorCode {
     // 401 이 아니다. 이미 로그인된 상태이고 다시 확인한 입력값이 틀린 것뿐이다.
     // 401 로 내려보내면 클라이언트가 토큰 만료로 오해하고 재발급을 시도한다.
     PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, "비밀번호가 올바르지 않습니다."),
+    SOCIAL_ACCOUNT_IMMUTABLE(HttpStatus.BAD_REQUEST, "소셜 로그인 계정은 이메일과 비밀번호를 변경할 수 없습니다."),
     OWNER_WORKSPACE_EXISTS(HttpStatus.BAD_REQUEST, "혼자 관리자인 워크스페이스가 있어 탈퇴할 수 없습니다. 다른 멤버를 관리자로 지정하거나 워크스페이스를 삭제해주세요."),
 
     // 401

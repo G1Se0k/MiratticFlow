@@ -69,6 +69,18 @@ public class User extends BaseTimeEntity {
         return password != null;
     }
 
+    public void changeName(String name) {
+        this.name = name;
+    }
+
+    public void changeEmail(String email) {
+        this.email = email;
+    }
+
+    public void changePassword(String encodedPassword) {
+        this.password = encodedPassword;
+    }
+
     /**
      * 탈퇴. 행을 지우지 않고 식별 정보만 비운다.
      *
