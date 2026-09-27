@@ -11,7 +11,7 @@ export default function PrivacyPage() {
     <>
       <header>
         <h1>개인정보처리방침</h1>
-        <p className="mt-2 text-slate-500">시행일 2026년 9월 24일</p>
+        <p className="mt-2 text-ink-faint">시행일 2026년 9월 24일</p>
       </header>
 
       <p>
@@ -24,11 +24,11 @@ export default function PrivacyPage() {
         <p>회원가입 시 다음 정보를 수집합니다.</p>
         <ul>
           <li>
-            <strong className="text-slate-900 dark:text-slate-100">이메일 가입</strong> — 이메일, 이름,
+            <strong className="text-ink">이메일 가입</strong> — 이메일, 이름,
             비밀번호. 비밀번호는 암호화(BCrypt 해시)한 값만 저장하며 원문은 보관하지 않습니다.
           </li>
           <li>
-            <strong className="text-slate-900 dark:text-slate-100">소셜 로그인(카카오 · 네이버)</strong> —
+            <strong className="text-ink">소셜 로그인(카카오 · 네이버)</strong> —
             제공자가 부여한 회원 고유 번호, 이름(또는 닉네임), 이메일. 카카오의 이메일은 선택 동의 항목이므로
             동의하지 않으면 수집하지 않으며, 그 경우에도 서비스를 이용할 수 있습니다. 소셜 로그인 회원의
             비밀번호는 저장하지 않습니다.
@@ -98,15 +98,15 @@ export default function PrivacyPage() {
         <p>탈퇴하면 다음과 같이 처리됩니다.</p>
         <ul>
           <li>
-            <strong className="text-slate-900 dark:text-slate-100">즉시 파기</strong> — 이메일, 이름, 비밀번호,
+            <strong className="text-ink">즉시 파기</strong> — 이메일, 이름, 비밀번호,
             소셜 로그인 식별자. 저장 공간을 비우는 방식이라 가려두는 것이 아니라 값 자체가 사라집니다.
           </li>
           <li>
-            <strong className="text-slate-900 dark:text-slate-100">즉시 삭제</strong> — 워크스페이스 · 프로젝트
+            <strong className="text-ink">즉시 삭제</strong> — 워크스페이스 · 프로젝트
             참여 정보, 받은 알림, 로그인 토큰. 담당 중이던 이슈는 담당자가 없는 상태로 돌아갑니다.
           </li>
           <li>
-            <strong className="text-slate-900 dark:text-slate-100">남는 것</strong> — 이미 작성한 이슈 · 댓글 ·
+            <strong className="text-ink">남는 것</strong> — 이미 작성한 이슈 · 댓글 ·
             채팅 메시지. 함께 일한 다른 구성원의 기록이기도 하여 삭제하지 않으며, 작성자는 &lsquo;탈퇴한
             사용자&rsquo;로 표시되어 누가 썼는지 알 수 없게 됩니다. 본문에 직접 입력한 내용은 그대로 남으므로,
             지우고 싶은 게시물은 탈퇴 전에 삭제해 주십시오.

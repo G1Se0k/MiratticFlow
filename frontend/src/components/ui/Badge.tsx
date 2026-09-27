@@ -1,25 +1,53 @@
 import type { ReactNode } from 'react';
-import { ISSUE_PRIORITY_LABEL, type IssuePriority } from '@/lib/api/issue';
+import {
+  ISSUE_PRIORITY_LABEL,
+  ISSUE_STATUS_LABEL,
+  type IssuePriority,
+  type IssueStatus,
+} from '@/lib/api/issue';
 
-type Tone = 'slate' | 'amber' | 'red';
+type Tone = 'neutral' | 'accent' | 'warn' | 'danger' | 'done';
 
 const TONE: Record<Tone, string> = {
-  slate: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
-  amber: 'bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
-  red: 'bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300',
+  neutral: 'bg-raised text-ink-soft',
+  accent: 'bg-accent-soft text-accent-ink',
+  warn: 'bg-warn-soft text-warn',
+  danger: 'bg-danger-soft text-danger',
+  done: 'bg-done-soft text-done',
 };
 
-function Badge({ tone = 'slate', children }: { tone?: Tone; children: ReactNode }) {
+export function Badge({ tone = 'neutral', children }: { tone?: Tone; children: ReactNode }) {
   return (
-    <span className={`inline-flex shrink-0 rounded px-1.5 py-0.5 text-xs font-medium ${TONE[tone]}`}>{children}</span>
+    <span
+      className={`inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-[11px] font-medium ${TONE[tone]}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+const STATUS_TONE: Record<IssueStatus, Tone> = {
+  TODO: 'neutral',
+  IN_PROGRESS: 'accent',
+  REVIEW: 'warn',
+  DONE: 'done',
+};
+
+/** 상태는 이슈에서 가장 먼저 읽는 값이라 점 하나를 앞에 붙여 눈에 걸리게 한다. */
+export function StatusBadge({ status }: { status: IssueStatus }) {
+  return (
+    <Badge tone={STATUS_TONE[status]}>
+      <span aria-hidden className="mr-1 size-1.5 rounded-full bg-current" />
+      {ISSUE_STATUS_LABEL[status]}
+    </Badge>
   );
 }
 
 const PRIORITY_TONE: Record<IssuePriority, Tone> = {
-  LOW: 'slate',
-  MEDIUM: 'slate',
-  HIGH: 'amber',
-  URGENT: 'red',
+  LOW: 'neutral',
+  MEDIUM: 'neutral',
+  HIGH: 'warn',
+  URGENT: 'danger',
 };
 
 /** 낮음·보통은 눈에 띌 필요가 없어 배지를 그리지 않는다. */

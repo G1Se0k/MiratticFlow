@@ -4,10 +4,12 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { FormError, FormField } from '@/components/ui/FormField';
-import { Modal } from '@/components/ui/Modal';
+import { Icon } from '@/components/ui/Icon';
+import { Modal, ModalActions } from '@/components/ui/Modal';
 import { SkeletonList } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 import { useCreateWorkspace, useWorkspaces } from '@/hooks/useWorkspaces';
@@ -18,45 +20,61 @@ export default function WorkspacesPage() {
   const [creating, setCreating] = useState(false);
   const [joining, setJoining] = useState(false);
 
-  if (isPending) return <SkeletonList rows={3} className="h-24" />;
-
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold tracking-tight">워크스페이스</h1>
-        <div className="flex gap-2">
-          <Button variant="secondary" onClick={() => setJoining(true)}>
-            코드로 참여
-          </Button>
-          <Button onClick={() => setCreating(true)}>새 워크스페이스</Button>
+    <div className="flex flex-col gap-5">
+      <header className="flex flex-wrap items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-[17px] font-semibold">워크스페이스</h1>
+          <p className="mt-0.5 text-[13px] text-ink-soft">참여 중인 팀 공간입니다.</p>
         </div>
-      </div>
+        <Button variant="secondary" size="sm" onClick={() => setJoining(true)}>
+          코드로 참여
+        </Button>
+        <Button size="sm" onClick={() => setCreating(true)}>
+          <Icon name="plus" className="size-3.5" />
+          새 워크스페이스
+        </Button>
+      </header>
 
-      {workspaces?.length === 0 ? (
-        <EmptyState
-          title="아직 워크스페이스가 없습니다"
-          description="새로 만들거나, 팀에서 받은 초대 코드로 참여하세요."
-          action={<Button onClick={() => setCreating(true)}>새 워크스페이스 만들기</Button>}
-        />
+      {isPending ? (
+        <SkeletonList rows={3} className="h-16" />
+      ) : workspaces?.length === 0 ? (
+        <div className="rounded-card border border-line bg-surface">
+          <EmptyState
+            icon="layers"
+            title="아직 워크스페이스가 없습니다"
+            description="새로 만들거나, 팀에서 받은 초대 코드로 참여하세요."
+            action={
+              <Button size="sm" onClick={() => setCreating(true)}>
+                새 워크스페이스 만들기
+              </Button>
+            }
+          />
+        </div>
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2">
+        <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
           {workspaces?.map((workspace) => (
             <li key={workspace.id}>
               <Link
                 href={`/workspaces/${workspace.id}`}
-                className="block rounded-xl border border-slate-200 p-5 transition-colors hover:border-brand-400 dark:border-slate-800 dark:hover:border-brand-500"
+                className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-raised"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <p className="font-medium">{workspace.name}</p>
-                  {workspace.myRole === 'OWNER' && (
-                    <span className="rounded bg-brand-50 px-1.5 py-0.5 text-xs text-brand-700 dark:bg-brand-700/20 dark:text-brand-200">
-                      관리자
-                    </span>
-                  )}
-                </div>
-                <p className="mt-1 line-clamp-2 text-sm text-slate-500">
-                  {workspace.description || '설명 없음'}
-                </p>
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-raised text-ink-soft">
+                  <Icon name="layers" className="size-4" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-1.5">
+                    <span className="truncate text-[13px] font-medium">{workspace.name}</span>
+                    {workspace.myRole === 'OWNER' && <Badge>관리자</Badge>}
+                  </span>
+                  <span className="mt-0.5 block truncate text-[13px] text-ink-soft">
+                    {workspace.description || '설명 없음'}
+                  </span>
+                </span>
+                <Icon
+                  name="chevronRight"
+                  className="size-4 text-ink-faint transition-transform group-hover:translate-x-0.5"
+                />
               </Link>
             </li>
           ))}
@@ -78,7 +96,7 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
   return (
     <Modal open={open} onClose={onClose} title="새 워크스페이스">
       <form
-        className="flex flex-col gap-4"
+        className="flex flex-col gap-3.5"
         onSubmit={handleSubmit((values) =>
           create.mutate(values, {
             onSuccess: (workspace) => {
@@ -97,14 +115,14 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
         />
         <FormField label="설명 (선택)" placeholder="무엇을 하는 팀인가요?" {...register('description')} />
         {create.isError && <FormError>{create.error.message}</FormError>}
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onClose}>
+        <ModalActions>
+          <Button type="button" variant="ghost" size="sm" onClick={onClose}>
             취소
           </Button>
-          <Button type="submit" disabled={create.isPending}>
+          <Button type="submit" size="sm" disabled={create.isPending}>
             만들기
           </Button>
-        </div>
+        </ModalActions>
       </form>
     </Modal>
   );
@@ -135,8 +153,8 @@ function JoinModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="코드로 참여">
-      <form className="flex flex-col gap-4" onSubmit={submit}>
+    <Modal open={open} onClose={onClose} title="코드로 참여" description="팀에서 받은 참여 코드를 입력하세요.">
+      <form className="flex flex-col gap-3.5" onSubmit={submit}>
         <FormField
           label="초대 코드"
           placeholder="ABCD-1234"
@@ -144,15 +162,16 @@ function JoinModal({ open, onClose }: { open: boolean; onClose: () => void }) {
           onChange={(e) => setCode(e.target.value)}
           error={error ?? undefined}
           autoFocus
+          className="font-mono tracking-widest"
         />
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onClose}>
+        <ModalActions>
+          <Button type="button" variant="ghost" size="sm" onClick={onClose}>
             취소
           </Button>
-          <Button type="submit" disabled={pending || code.trim().length < 4}>
+          <Button type="submit" size="sm" disabled={pending || code.trim().length < 4}>
             참여하기
           </Button>
-        </div>
+        </ModalActions>
       </form>
     </Modal>
   );

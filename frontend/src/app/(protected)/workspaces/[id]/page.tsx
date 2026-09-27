@@ -4,11 +4,15 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { Avatar } from '@/components/ui/Avatar';
+import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { FormError, FormField } from '@/components/ui/FormField';
-import { Modal } from '@/components/ui/Modal';
-import { Spinner } from '@/components/ui/Spinner';
+import { Icon } from '@/components/ui/Icon';
+import { Menu } from '@/components/ui/Menu';
+import { Modal, ModalActions } from '@/components/ui/Modal';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 import { useMe } from '@/hooks/useAuth';
 import { useCreateProject, useProjects } from '@/hooks/useProjects';
@@ -36,84 +40,104 @@ export default function WorkspaceDetailPage() {
   const { data: me } = useMe();
 
   const isOwner = workspace?.myRole === 'OWNER';
-  const { data: joinCode } = useJoinCode(workspaceId, Boolean(isOwner));
-  const { data: links } = useInviteLinks(workspaceId, Boolean(isOwner));
-
   const { changeRole, removeMember } = useMemberMutations(workspaceId);
-  const { createLink, revokeLink, regenerateCode } = useInviteMutations(workspaceId);
   const { data: projects } = useProjects(workspaceId);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [creatingProject, setCreatingProject] = useState(false);
   const [editingWorkspace, setEditingWorkspace] = useState(false);
+  const [inviting, setInviting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  if (isPending) return <Spinner />;
+  if (isPending) return <WorkspaceSkeleton />;
   if (isError || !workspace) {
     return (
-      <div className="flex flex-col items-center gap-4 py-16 text-center">
-        <p className="text-sm text-slate-500">{error?.message ?? '워크스페이스를 불러오지 못했습니다.'}</p>
-        <Button variant="secondary" onClick={() => router.push('/workspaces')}>
-          목록으로
-        </Button>
-      </div>
+      <EmptyState
+        icon="alert"
+        title={error?.message ?? '워크스페이스를 불러오지 못했습니다.'}
+        action={
+          <Button variant="secondary" size="sm" onClick={() => router.push('/workspaces')}>
+            목록으로
+          </Button>
+        }
+      />
     );
   }
 
-  const copy = async (text: string, label: string) => {
-    await navigator.clipboard.writeText(text);
-    toast(`${label}를 복사했습니다.`);
-  };
-
-  const inviteUrl = (code: string) => `${window.location.origin}/invite/${code}`;
-
   return (
-    <div className="flex flex-col gap-8">
-      <header className="flex items-start gap-3">
-        <div className="min-w-0">
-          <h1 className="text-xl font-semibold tracking-tight">{workspace.name}</h1>
-          {workspace.description && <p className="mt-1 text-sm text-slate-500">{workspace.description}</p>}
+    <div className="flex flex-col gap-7">
+      <header className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-[17px] font-semibold">{workspace.name}</h1>
+          <p className="mt-0.5 text-[13px] text-ink-soft">
+            {workspace.description || '설명 없음'} · 멤버 {members?.length ?? 0}명
+          </p>
         </div>
         {isOwner && (
-          <Button size="sm" variant="secondary" className="ml-auto shrink-0" onClick={() => setEditingWorkspace(true)}>
+          <Button size="sm" variant="secondary" onClick={() => setEditingWorkspace(true)}>
+            <Icon name="settings" className="size-3.5" />
             설정
           </Button>
         )}
+        <Menu
+          items={[
+            { label: '워크스페이스 나가기', icon: 'logout', onSelect: () => setConfirmLeave(true), danger: true },
+            ...(isOwner
+              ? [{ label: '워크스페이스 삭제', icon: 'trash' as const, onSelect: () => setConfirmDelete(true), danger: true }]
+              : []),
+          ]}
+        />
       </header>
 
       {/* 프로젝트 — 워크스페이스에서 가장 자주 쓰는 화면이라 맨 위에 둔다 */}
-      <section className="flex flex-col gap-3">
+      <section className="flex flex-col gap-2.5">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium text-slate-500">프로젝트 {projects?.length ?? 0}개</h2>
-          <Button size="sm" onClick={() => setCreatingProject(true)}>
+          <h2 className="text-[13px] font-semibold">프로젝트 {projects?.length ?? 0}</h2>
+          <Button size="sm" variant="secondary" onClick={() => setCreatingProject(true)}>
+            <Icon name="plus" className="size-3.5" />
             새 프로젝트
           </Button>
         </div>
+
         {projects?.length === 0 ? (
-          <EmptyState
-            title="아직 프로젝트가 없습니다"
-            description="프로젝트를 만들면 그 안에서 이슈를 관리하고 팀과 이야기할 수 있습니다."
-            action={<Button onClick={() => setCreatingProject(true)}>새 프로젝트 만들기</Button>}
-          />
+          <div className="rounded-card border border-line bg-surface">
+            <EmptyState
+              icon="folder"
+              title="아직 프로젝트가 없습니다"
+              description="프로젝트를 만들면 그 안에서 이슈를 관리하고 팀과 이야기할 수 있습니다."
+              action={
+                <Button size="sm" onClick={() => setCreatingProject(true)}>
+                  새 프로젝트 만들기
+                </Button>
+              }
+            />
+          </div>
         ) : (
-          <ul className="grid gap-3 sm:grid-cols-2">
+          <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
             {projects?.map((project) => (
               <li key={project.id}>
                 <Link
                   href={`/projects/${project.id}`}
-                  className="block rounded-xl border border-slate-200 p-4 transition-colors hover:border-brand-400 dark:border-slate-800 dark:hover:border-brand-500"
+                  className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-raised"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="truncate font-medium">{project.name}</p>
-                    {project.status === 'ARCHIVED' && (
-                      <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500 dark:bg-slate-800">
-                        보관됨
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-1 line-clamp-2 text-sm text-slate-500">{project.description || '설명 없음'}</p>
-                  <p className="mt-2 text-xs text-slate-400">
-                    참여자 {project.memberCount}명 · {project.createdByName}
-                  </p>
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-raised text-ink-soft">
+                    <Icon name="folder" className="size-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1.5">
+                      <span className="truncate text-[13px] font-medium">{project.name}</span>
+                      {project.status === 'ARCHIVED' && <Badge>보관됨</Badge>}
+                    </span>
+                    <span className="mt-0.5 block truncate text-[13px] text-ink-soft">
+                      {project.description || '설명 없음'}
+                    </span>
+                  </span>
+                  <span className="hidden shrink-0 text-xs text-ink-faint sm:block">
+                    참여자 {project.memberCount}명
+                  </span>
+                  <Icon
+                    name="chevronRight"
+                    className="size-4 text-ink-faint transition-transform group-hover:translate-x-0.5"
+                  />
                 </Link>
               </li>
             ))}
@@ -121,85 +145,17 @@ export default function WorkspaceDetailPage() {
         )}
       </section>
 
-      {isOwner && (
-        <section className="flex flex-col gap-4 rounded-xl border border-slate-200 p-5 dark:border-slate-800">
-          <h2 className="text-sm font-medium text-slate-500">멤버 초대</h2>
-
-          {/* 상시 코드 — 아는 사람은 누구나 참여 */}
-          <div className="flex flex-wrap items-center gap-3">
-            <div>
-              <p className="text-xs text-slate-500">참여 코드</p>
-              <p className="font-mono text-lg tracking-widest">{joinCode?.code ?? '···'}</p>
-            </div>
-            <div className="ml-auto flex gap-2">
-              <Button size="sm" variant="secondary" onClick={() => joinCode && copy(joinCode.code, '코드')}>
-                코드 복사
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() =>
-                  regenerateCode.mutate(undefined, { onSuccess: () => toast('새 코드를 발급했습니다. 이전 코드는 사용할 수 없습니다.') })
-                }
-                disabled={regenerateCode.isPending}
-              >
-                재발급
-              </Button>
-            </div>
-          </div>
-
-          <hr className="border-slate-200 dark:border-slate-800" />
-
-          {/* 일회용 링크 — 특정인에게 전달 */}
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium">초대 링크</p>
-              <p className="text-xs text-slate-500">한 번만 사용할 수 있고 7일 뒤 만료됩니다.</p>
-            </div>
-            <Button
-              size="sm"
-              onClick={() =>
-                createLink.mutate(undefined, {
-                  onSuccess: (invite) => copy(inviteUrl(invite.code), '초대 링크'),
-                })
-              }
-              disabled={createLink.isPending}
-            >
-              링크 만들기
+      <section className="flex flex-col gap-2.5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-[13px] font-semibold">멤버 {members?.length ?? 0}</h2>
+          {isOwner && (
+            <Button size="sm" variant="secondary" onClick={() => setInviting(true)}>
+              <Icon name="link" className="size-3.5" />
+              멤버 초대
             </Button>
-          </div>
-
-          {links && links.length > 0 && (
-            <ul className="flex flex-col gap-2">
-              {links.map((link) => (
-                <li
-                  key={link.id}
-                  className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-slate-900"
-                >
-                  <span className="truncate font-mono text-xs text-slate-500">{inviteUrl(link.code)}</span>
-                  <span className="ml-auto shrink-0 text-xs text-slate-400">
-                    {link.usedCount}/{link.maxUses}
-                  </span>
-                  <Button size="sm" variant="ghost" onClick={() => copy(inviteUrl(link.code), '초대 링크')}>
-                    복사
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    onClick={() => revokeLink.mutate(link.id, { onSuccess: () => toast('링크를 폐기했습니다.') })}
-                  >
-                    폐기
-                  </Button>
-                </li>
-              ))}
-            </ul>
           )}
-        </section>
-      )}
-
-      <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium text-slate-500">멤버 {members?.length ?? 0}명</h2>
-        <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 dark:divide-slate-800 dark:border-slate-800">
+        </div>
+        <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
           {members?.map((member) => (
             <MemberRow
               key={member.userId}
@@ -226,17 +182,6 @@ export default function WorkspaceDetailPage() {
         </ul>
       </section>
 
-      <section className="flex flex-wrap gap-2">
-        <Button variant="danger" size="sm" onClick={() => setConfirmLeave(true)}>
-          워크스페이스 나가기
-        </Button>
-        {isOwner && (
-          <Button variant="danger" size="sm" onClick={() => setConfirmDelete(true)}>
-            워크스페이스 삭제
-          </Button>
-        )}
-      </section>
-
       <CreateProjectModal
         open={creatingProject}
         onClose={() => setCreatingProject(false)}
@@ -249,14 +194,21 @@ export default function WorkspaceDetailPage() {
         workspace={workspace}
       />
 
-      <Modal open={confirmLeave} onClose={() => setConfirmLeave(false)} title="워크스페이스를 나갈까요?">
-        <p className="text-sm text-slate-500">나가면 이 워크스페이스의 내용을 볼 수 없습니다.</p>
-        <div className="mt-5 flex justify-end gap-2">
-          <Button variant="ghost" onClick={() => setConfirmLeave(false)}>
+      {isOwner && <InviteModal open={inviting} onClose={() => setInviting(false)} workspaceId={workspaceId} />}
+
+      <Modal
+        open={confirmLeave}
+        onClose={() => setConfirmLeave(false)}
+        title="워크스페이스를 나갈까요?"
+        description="나가면 이 워크스페이스의 내용을 볼 수 없습니다."
+      >
+        <ModalActions>
+          <Button variant="ghost" size="sm" onClick={() => setConfirmLeave(false)}>
             취소
           </Button>
           <Button
-            variant="danger"
+            variant="dangerSolid"
+            size="sm"
             onClick={async () => {
               try {
                 await workspaceApi.leave(workspaceId);
@@ -270,13 +222,27 @@ export default function WorkspaceDetailPage() {
           >
             나가기
           </Button>
-        </div>
+        </ModalActions>
       </Modal>
+
       <DeleteWorkspaceModal
         open={confirmDelete}
         onClose={() => setConfirmDelete(false)}
         workspace={workspace}
       />
+    </div>
+  );
+}
+
+function WorkspaceSkeleton() {
+  return (
+    <div className="flex flex-col gap-7" role="status" aria-label="불러오는 중">
+      <div className="flex flex-col gap-2">
+        <Skeleton className="h-5 w-40" />
+        <Skeleton className="h-3.5 w-64" />
+      </div>
+      <Skeleton className="h-44" />
+      <Skeleton className="h-32" />
     </div>
   );
 }
@@ -295,31 +261,32 @@ function MemberRow({
   onRemove: () => void;
 }) {
   return (
-    <li className="flex items-center gap-3 px-4 py-3">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-medium text-brand-700 dark:bg-brand-700/25 dark:text-brand-200">
-        {member.name.slice(0, 1)}
-      </div>
+    <li className="flex items-center gap-3 px-4 py-2.5">
+      <Avatar name={member.name} />
       <div className="min-w-0">
-        <p className="truncate text-sm font-medium">
+        <p className="truncate text-[13px] font-medium">
           {member.name}
-          {isMe && <span className="ml-1 text-xs text-slate-400">(나)</span>}
+          {isMe && <span className="ml-1 text-xs font-normal text-ink-faint">(나)</span>}
         </p>
         {/* 소셜 가입자는 이메일이 없을 수 있다 */}
-        <p className="truncate text-xs text-slate-500">{member.email ?? '이메일 없음'}</p>
+        <p className="truncate text-xs text-ink-soft">{member.email ?? '이메일 없음'}</p>
       </div>
-      <span className="ml-auto shrink-0 text-xs text-slate-500">
-        {member.role === 'OWNER' ? '관리자' : '멤버'}
-      </span>
-      {canManage && (
-        <div className="flex shrink-0 gap-1">
-          <Button size="sm" variant="ghost" onClick={() => onChangeRole(member.role === 'OWNER' ? 'MEMBER' : 'OWNER')}>
-            {member.role === 'OWNER' ? '멤버로' : '관리자로'}
-          </Button>
-          <Button size="sm" variant="danger" onClick={onRemove}>
-            제외
-          </Button>
-        </div>
-      )}
+      <div className="ml-auto flex shrink-0 items-center gap-1.5">
+        {member.role === 'OWNER' ? <Badge tone="accent">관리자</Badge> : <Badge>멤버</Badge>}
+        {canManage && (
+          <Menu
+            label={`${member.name} 관리`}
+            items={[
+              {
+                label: member.role === 'OWNER' ? '멤버로 변경' : '관리자로 변경',
+                icon: 'refresh',
+                onSelect: () => onChangeRole(member.role === 'OWNER' ? 'MEMBER' : 'OWNER'),
+              },
+              { label: '워크스페이스에서 제외', icon: 'trash', onSelect: onRemove, danger: true },
+            ]}
+          />
+        )}
+      </div>
     </li>
   );
 }
@@ -340,7 +307,7 @@ function CreateProjectModal({
   return (
     <Modal open={open} onClose={onClose} title="새 프로젝트">
       <form
-        className="flex flex-col gap-4"
+        className="flex flex-col gap-3.5"
         onSubmit={handleSubmit((values) =>
           create.mutate(values, {
             onSuccess: (project) => {
@@ -359,14 +326,14 @@ function CreateProjectModal({
         />
         <FormField label="설명 (선택)" placeholder="무엇을 만드나요?" {...register('description')} />
         {create.isError && <FormError>{create.error.message}</FormError>}
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onClose}>
+        <ModalActions>
+          <Button type="button" variant="ghost" size="sm" onClick={onClose}>
             취소
           </Button>
-          <Button type="submit" disabled={create.isPending}>
+          <Button type="submit" size="sm" disabled={create.isPending}>
             만들기
           </Button>
-        </div>
+        </ModalActions>
       </form>
     </Modal>
   );
@@ -390,7 +357,7 @@ function WorkspaceSettingsModal({
   return (
     <Modal open={open} onClose={onClose} title="워크스페이스 설정">
       <form
-        className="flex flex-col gap-4"
+        className="flex flex-col gap-3.5"
         onSubmit={handleSubmit((values) =>
           update.mutate(values, {
             onSuccess: () => {
@@ -407,15 +374,122 @@ function WorkspaceSettingsModal({
         />
         <FormField label="설명" {...register('description')} />
         {update.isError && <FormError>{update.error.message}</FormError>}
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onClose}>
+        <ModalActions>
+          <Button type="button" variant="ghost" size="sm" onClick={onClose}>
             취소
           </Button>
-          <Button type="submit" disabled={update.isPending}>
+          <Button type="submit" size="sm" disabled={update.isPending}>
             저장
           </Button>
-        </div>
+        </ModalActions>
       </form>
+    </Modal>
+  );
+}
+
+/**
+ * 초대는 관리자만, 그리고 필요할 때만 쓴다.
+ * 예전에는 참여 코드와 링크 목록이 화면 중간을 차지하고 있었다 — 모달로 옮겨 본문을 비웠다.
+ */
+function InviteModal({
+  open,
+  onClose,
+  workspaceId,
+}: {
+  open: boolean;
+  onClose: () => void;
+  workspaceId: number;
+}) {
+  const toast = useToast();
+  const { data: joinCode } = useJoinCode(workspaceId, open);
+  const { data: links } = useInviteLinks(workspaceId, open);
+  const { createLink, revokeLink, regenerateCode } = useInviteMutations(workspaceId);
+
+  const copy = async (text: string, label: string) => {
+    await navigator.clipboard.writeText(text);
+    toast(`${label}를 복사했습니다.`);
+  };
+
+  const inviteUrl = (code: string) => `${window.location.origin}/invite/${code}`;
+
+  return (
+    <Modal open={open} onClose={onClose} title="멤버 초대">
+      <div className="flex flex-col gap-5">
+        {/* 상시 코드 — 아는 사람은 누구나 참여 */}
+        <div className="flex flex-col gap-2">
+          <p className="text-xs font-medium text-ink-soft">참여 코드</p>
+          <div className="flex items-center gap-2 rounded-md border border-line bg-raised px-2.5 py-2">
+            <span className="flex-1 font-mono text-[15px] tracking-widest">{joinCode?.code ?? '···'}</span>
+            <Button size="sm" variant="ghost" onClick={() => joinCode && copy(joinCode.code, '코드')}>
+              <Icon name="copy" className="size-3.5" />
+              복사
+            </Button>
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-ink-faint">코드를 아는 사람은 누구나 참여할 수 있습니다.</p>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() =>
+                regenerateCode.mutate(undefined, {
+                  onSuccess: () => toast('새 코드를 발급했습니다. 이전 코드는 사용할 수 없습니다.'),
+                })
+              }
+              disabled={regenerateCode.isPending}
+            >
+              재발급
+            </Button>
+          </div>
+        </div>
+
+        {/* 일회용 링크 — 특정인에게 전달 */}
+        <div className="flex flex-col gap-2 border-t border-line pt-4">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <p className="text-xs font-medium text-ink-soft">초대 링크</p>
+              <p className="text-xs text-ink-faint">한 번만 사용할 수 있고 7일 뒤 만료됩니다.</p>
+            </div>
+            <Button
+              size="sm"
+              onClick={() =>
+                createLink.mutate(undefined, {
+                  onSuccess: (invite) => copy(inviteUrl(invite.code), '초대 링크'),
+                })
+              }
+              disabled={createLink.isPending}
+            >
+              <Icon name="plus" className="size-3.5" />
+              링크 만들기
+            </Button>
+          </div>
+
+          {links && links.length > 0 && (
+            <ul className="flex flex-col gap-1.5">
+              {links.map((link) => (
+                <li key={link.id} className="flex items-center gap-1.5 rounded-md bg-raised px-2.5 py-1.5">
+                  <span className="min-w-0 flex-1 truncate font-mono text-xs text-ink-soft">
+                    {inviteUrl(link.code)}
+                  </span>
+                  <span className="shrink-0 text-xs text-ink-faint">
+                    {link.usedCount}/{link.maxUses}
+                  </span>
+                  <Button size="icon" variant="ghost" aria-label="복사" onClick={() => copy(inviteUrl(link.code), '초대 링크')}>
+                    <Icon name="copy" className="size-3.5" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="danger"
+                    aria-label="링크 폐기"
+                    onClick={() => revokeLink.mutate(link.id, { onSuccess: () => toast('링크를 폐기했습니다.') })}
+                  >
+                    <Icon name="trash" className="size-3.5" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
     </Modal>
   );
 }
@@ -444,11 +518,13 @@ function DeleteWorkspaceModal({
   };
 
   return (
-    <Modal open={open} onClose={close} title="워크스페이스를 삭제할까요?">
-      <div className="flex flex-col gap-4">
-        <p className="text-sm text-slate-500">
-          이 워크스페이스의 프로젝트와 이슈, 댓글, 채팅이 모두 삭제되고 되돌릴 수 없습니다. 멤버도 접근할 수 없게 됩니다.
-        </p>
+    <Modal
+      open={open}
+      onClose={close}
+      title="워크스페이스를 삭제할까요?"
+      description="프로젝트와 이슈, 댓글, 채팅이 모두 삭제되고 되돌릴 수 없습니다. 멤버도 접근할 수 없게 됩니다."
+    >
+      <div className="flex flex-col gap-3.5">
         <FormField
           label="확인을 위해 워크스페이스 이름을 입력해주세요"
           placeholder={workspace.name}
@@ -456,12 +532,13 @@ function DeleteWorkspaceModal({
           onChange={(e) => setConfirmName(e.target.value)}
         />
         {remove.isError && <FormError>{remove.error.message}</FormError>}
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={close}>
+        <ModalActions>
+          <Button variant="ghost" size="sm" onClick={close}>
             취소
           </Button>
           <Button
-            variant="danger"
+            variant="dangerSolid"
+            size="sm"
             disabled={confirmName !== workspace.name || remove.isPending}
             onClick={() =>
               remove.mutate(undefined, {
@@ -474,7 +551,7 @@ function DeleteWorkspaceModal({
           >
             삭제
           </Button>
-        </div>
+        </ModalActions>
       </div>
     </Modal>
   );

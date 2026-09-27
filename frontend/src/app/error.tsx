@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
+import { Icon } from '@/components/ui/Icon';
 
 /**
  * 렌더 중 터진 예외를 받는다.
@@ -26,18 +27,18 @@ export default function ErrorPage({
 
   return (
     <div className="flex min-h-[60dvh] flex-col items-center justify-center gap-4 px-4 text-center">
-      <p className="text-4xl" aria-hidden>
-        ⚠️
-      </p>
-      <h1 className="text-lg font-semibold">문제가 발생했습니다</h1>
-      <p className="max-w-sm text-sm text-slate-500">
+      <span className="flex size-10 items-center justify-center rounded-full bg-danger-soft text-danger">
+        <Icon name="alert" className="size-5" />
+      </span>
+      <h1 className="text-[15px] font-semibold">문제가 발생했습니다</h1>
+      <p className="max-w-sm text-[13px] text-ink-soft">
         잠시 후 다시 시도해주세요. 계속 같은 화면이 보이면 새로고침해주세요.
       </p>
       {/* digest 는 서버 로그와 맞춰 볼 수 있는 식별자다. 에러 내용 자체는 사용자에게 보여주지 않는다. */}
-      {error.digest && <p className="font-mono text-xs text-slate-400">{error.digest}</p>}
+      {error.digest && <p className="font-mono text-[11px] text-ink-faint">{error.digest}</p>}
       <div className="flex gap-2">
-        <Button onClick={() => retry()}>다시 시도</Button>
-        <Button variant="secondary" onClick={() => (window.location.href = '/workspaces')}>
+        <Button size="sm" onClick={() => retry()}>다시 시도</Button>
+        <Button size="sm" variant="secondary" onClick={() => (window.location.href = '/workspaces')}>
           워크스페이스로
         </Button>
       </div>

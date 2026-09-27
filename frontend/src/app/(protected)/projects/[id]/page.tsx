@@ -4,10 +4,15 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { Avatar } from '@/components/ui/Avatar';
+import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { FormError, FormField } from '@/components/ui/FormField';
-import { Modal } from '@/components/ui/Modal';
+import { Icon } from '@/components/ui/Icon';
+import { Menu } from '@/components/ui/Menu';
+import { Modal, ModalActions } from '@/components/ui/Modal';
+import { Select } from '@/components/ui/Select';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 import { useMe } from '@/hooks/useAuth';
@@ -36,77 +41,85 @@ export default function ProjectDetailPage() {
   if (isPending) return <ProjectPageSkeleton />;
   if (isError || !project) {
     return (
-      <div className="flex flex-col items-center gap-4 py-16 text-center">
-        <p className="text-sm text-slate-500">{error?.message ?? '프로젝트를 불러오지 못했습니다.'}</p>
-        <Button variant="secondary" onClick={() => router.push('/workspaces')}>
-          워크스페이스 목록으로
-        </Button>
-      </div>
+      <EmptyState
+        icon="alert"
+        title={error?.message ?? '프로젝트를 불러오지 못했습니다.'}
+        action={
+          <Button variant="secondary" size="sm" onClick={() => router.push('/workspaces')}>
+            워크스페이스 목록으로
+          </Button>
+        }
+      />
     );
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      <header className="flex flex-col gap-2">
+    <div className="flex flex-col gap-7">
+      <header className="flex flex-col gap-1.5">
         <Link
           href={`/workspaces/${project.workspaceId}`}
-          className="w-fit text-xs text-slate-500 hover:text-brand-600 dark:hover:text-brand-300"
+          className="flex w-fit items-center gap-1 text-xs text-ink-faint transition-colors hover:text-ink"
         >
-          ← {workspace?.name ?? '워크스페이스'}
+          <Icon name="arrowLeft" className="size-3.5" />
+          {workspace?.name ?? '워크스페이스'}
         </Link>
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-xl font-semibold tracking-tight">{project.name}</h1>
-          {project.status === 'ARCHIVED' && (
-            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500 dark:bg-slate-800">
-              보관됨
-            </span>
-          )}
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <h1 className="truncate text-[17px] font-semibold">{project.name}</h1>
+              {project.status === 'ARCHIVED' && <Badge>보관됨</Badge>}
+            </div>
+            <p className="mt-0.5 text-[13px] text-ink-soft">
+              {project.description || '설명 없음'} · 만든 사람 {project.createdByName}
+            </p>
+          </div>
           {project.canManage && (
-            <div className="ml-auto flex gap-2">
+            <>
               <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>
+                <Icon name="settings" className="size-3.5" />
                 설정
               </Button>
-              <Button size="sm" variant="danger" onClick={() => setConfirmDelete(true)}>
-                삭제
-              </Button>
-            </div>
+              <Menu
+                items={[{ label: '프로젝트 삭제', icon: 'trash', onSelect: () => setConfirmDelete(true), danger: true }]}
+              />
+            </>
           )}
         </div>
-        <p className="text-sm text-slate-500">{project.description || '설명 없음'}</p>
-        <p className="text-xs text-slate-400">만든 사람 {project.createdByName}</p>
       </header>
 
       <ProjectDashboard projectId={projectId} />
 
       <IssueSection projectId={projectId} members={members ?? []} />
 
-      <section className="flex flex-col gap-3">
+      <section className="flex flex-col gap-2.5">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium text-slate-500">참여자 {members?.length ?? 0}명</h2>
+          <h2 className="text-[13px] font-semibold">참여자 {members?.length ?? 0}</h2>
           {project.canManage && (
             <Button size="sm" variant="secondary" onClick={() => setAdding(true)}>
+              <Icon name="plus" className="size-3.5" />
               참여자 추가
             </Button>
           )}
         </div>
-        <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 dark:divide-slate-800 dark:border-slate-800">
+        <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
           {members?.map((member) => (
-            <li key={member.userId} className="flex items-center gap-3 px-4 py-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-medium text-brand-700 dark:bg-brand-700/25 dark:text-brand-200">
-                {member.name.slice(0, 1)}
-              </div>
+            <li key={member.userId} className="flex items-center gap-3 px-4 py-2.5">
+              <Avatar name={member.name} />
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium">
+                <p className="truncate text-[13px] font-medium">
                   {member.name}
-                  {member.userId === me?.id && <span className="ml-1 text-xs text-slate-400">(나)</span>}
+                  {member.userId === me?.id && (
+                    <span className="ml-1 text-xs font-normal text-ink-faint">(나)</span>
+                  )}
                 </p>
-                <p className="truncate text-xs text-slate-500">{member.email ?? '이메일 없음'}</p>
+                <p className="truncate text-xs text-ink-soft">{member.email ?? '이메일 없음'}</p>
               </div>
               {project.canManage && (
                 <Button
-                  size="sm"
+                  size="icon"
                   variant="danger"
-                  className="ml-auto shrink-0"
+                  aria-label={`${member.name} 제외`}
+                  className="ml-auto"
                   onClick={() =>
                     removeMember.mutate(member.userId, {
                       onSuccess: () => toast('참여자를 제외했습니다.'),
@@ -114,7 +127,7 @@ export default function ProjectDetailPage() {
                     })
                   }
                 >
-                  제외
+                  <Icon name="close" className="size-3.5" />
                 </Button>
               )}
             </li>
@@ -124,7 +137,7 @@ export default function ProjectDetailPage() {
 
       <EditModal open={editing} onClose={() => setEditing(false)} project={project} />
 
-      <Modal open={adding} onClose={() => setAdding(false)} title="참여자 추가">
+      <Modal open={adding} onClose={() => setAdding(false)} title="참여자 추가" description="워크스페이스 멤버 중에서 고릅니다.">
         <AddMemberList
           workspaceId={project.workspaceId}
           joinedIds={members?.map((m) => m.userId) ?? []}
@@ -137,14 +150,19 @@ export default function ProjectDetailPage() {
         />
       </Modal>
 
-      <Modal open={confirmDelete} onClose={() => setConfirmDelete(false)} title="프로젝트를 삭제할까요?">
-        <p className="text-sm text-slate-500">삭제하면 되돌릴 수 없습니다. 보관만 하려면 설정에서 상태를 바꾸세요.</p>
-        <div className="mt-5 flex justify-end gap-2">
-          <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
+      <Modal
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        title="프로젝트를 삭제할까요?"
+        description="삭제하면 되돌릴 수 없습니다. 보관만 하려면 설정에서 상태를 바꾸세요."
+      >
+        <ModalActions>
+          <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(false)}>
             취소
           </Button>
           <Button
-            variant="danger"
+            variant="dangerSolid"
+            size="sm"
             disabled={remove.isPending}
             onClick={() =>
               remove.mutate(undefined, {
@@ -161,7 +179,7 @@ export default function ProjectDetailPage() {
           >
             삭제
           </Button>
-        </div>
+        </ModalActions>
       </Modal>
 
       <ProjectChatDock projectId={projectId} />
@@ -176,20 +194,16 @@ export default function ProjectDetailPage() {
  */
 function ProjectPageSkeleton() {
   return (
-    <div className="flex flex-col gap-8" role="status" aria-label="불러오는 중">
+    <div className="flex flex-col gap-7" role="status" aria-label="불러오는 중">
       <div className="flex flex-col gap-2">
         <Skeleton className="h-3 w-24" />
-        <Skeleton className="h-6 w-48" />
-        <Skeleton className="h-4 w-64" />
+        <Skeleton className="h-5 w-48" />
+        <Skeleton className="h-3.5 w-64" />
       </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {Array.from({ length: 4 }, (_, i) => (
-          <Skeleton key={i} className="h-[74px]" />
-        ))}
-      </div>
-      <div className="grid gap-4 lg:grid-cols-3">
+      <Skeleton className="h-[70px]" />
+      <div className="grid gap-3 lg:grid-cols-3">
         {Array.from({ length: 3 }, (_, i) => (
-          <Skeleton key={i} className="h-[250px]" />
+          <Skeleton key={i} className="h-[230px]" />
         ))}
       </div>
       <Skeleton className="h-48" />
@@ -207,7 +221,7 @@ function EditModal({ open, onClose, project }: { open: boolean; onClose: () => v
   return (
     <Modal open={open} onClose={onClose} title="프로젝트 설정">
       <form
-        className="flex flex-col gap-4"
+        className="flex flex-col gap-3.5"
         onSubmit={handleSubmit((values) =>
           update.mutate(values, {
             onSuccess: () => {
@@ -223,28 +237,19 @@ function EditModal({ open, onClose, project }: { open: boolean; onClose: () => v
           {...register('name', { required: '이름을 입력해주세요.', maxLength: { value: 50, message: '50자 이하' } })}
         />
         <FormField label="설명" {...register('description')} />
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="status" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-            상태
-          </label>
-          <select
-            id="status"
-            {...register('status')}
-            className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none dark:border-slate-700 dark:bg-slate-900"
-          >
-            <option value="ACTIVE">진행 중</option>
-            <option value="ARCHIVED">보관</option>
-          </select>
-        </div>
+        <Select label="상태" {...register('status')}>
+          <option value="ACTIVE">진행 중</option>
+          <option value="ARCHIVED">보관</option>
+        </Select>
         {update.isError && <FormError>{update.error.message}</FormError>}
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onClose}>
+        <ModalActions>
+          <Button type="button" variant="ghost" size="sm" onClick={onClose}>
             취소
           </Button>
-          <Button type="submit" disabled={update.isPending}>
+          <Button type="submit" size="sm" disabled={update.isPending}>
             저장
           </Button>
-        </div>
+        </ModalActions>
       </form>
     </Modal>
   );
@@ -263,18 +268,27 @@ function AddMemberList({
   const { data: workspaceMembers, isPending } = useMembers(workspaceId);
   const candidates = workspaceMembers?.filter((m) => !joinedIds.includes(m.userId)) ?? [];
 
-  if (isPending) return <ProjectPageSkeleton />;
+  if (isPending) {
+    return (
+      <div className="flex flex-col gap-2">
+        {Array.from({ length: 3 }, (_, i) => (
+          <Skeleton key={i} className="h-10" />
+        ))}
+      </div>
+    );
+  }
   if (candidates.length === 0) {
-    return <p className="text-sm text-slate-500">워크스페이스 멤버가 모두 참여 중입니다.</p>;
+    return <p className="text-[13px] text-ink-soft">워크스페이스 멤버가 모두 참여 중입니다.</p>;
   }
 
   return (
-    <ul className="flex max-h-72 flex-col gap-1 overflow-y-auto">
+    <ul className="thin-scroll flex max-h-72 flex-col gap-0.5 overflow-y-auto">
       {candidates.map((member) => (
-        <li key={member.userId} className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-slate-50 dark:hover:bg-slate-800">
+        <li key={member.userId} className="flex items-center gap-2.5 rounded-md px-1.5 py-1.5 hover:bg-raised">
+          <Avatar name={member.name} size="sm" />
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{member.name}</p>
-            <p className="truncate text-xs text-slate-500">{member.email ?? '이메일 없음'}</p>
+            <p className="truncate text-[13px] font-medium">{member.name}</p>
+            <p className="truncate text-xs text-ink-soft">{member.email ?? '이메일 없음'}</p>
           </div>
           <Button size="sm" variant="secondary" className="ml-auto shrink-0" onClick={() => onAdd(member.userId)}>
             추가

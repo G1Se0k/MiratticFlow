@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { ChatPanel } from '@/components/chat/ChatPanel';
+import { Icon } from '@/components/ui/Icon';
 import { useProjectChat } from '@/hooks/useChat';
 
 /**
@@ -25,15 +26,15 @@ export function ProjectChatDock({ projectId }: { projectId: number }) {
           topicId={topic.id}
           title="프로젝트 채팅"
           onClose={() => setOpen(false)}
-          className="h-[26rem] w-[20rem] shadow-xl sm:w-[22rem]"
+          className="h-[24rem] w-[19rem] shadow-pop sm:w-[21rem]"
         />
       ) : (
         <button
           onClick={() => setOpen(true)}
           aria-label="프로젝트 채팅 열기"
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-600 text-xl text-white shadow-lg transition-transform hover:scale-105"
+          className="flex size-10 items-center justify-center rounded-full bg-ink text-canvas shadow-pop transition-transform hover:scale-105"
         >
-          💬
+          <Icon name="message" className="size-4.5" />
         </button>
       )}
     </div>

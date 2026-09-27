@@ -1,38 +1,147 @@
 @import "tailwindcss";
 
-/* 로고에서 뽑은 브랜드 색. 보라 → 파랑 그라디언트가 아이덴티티다. */
+/*
+ * 색은 전부 여기서만 정한다. 화면에서 slate-500 같은 원시 색을 직접 쓰지 않는다.
+ * @theme 의 값이 런타임 변수(--c-*)를 가리키므로, 아래 :root 만 바꾸면 라이트/다크가 함께 따라온다.
+ * (Tailwind 는 bg-surface, border-line, text-ink-soft 같은 유틸리티를 자동으로 만들어 준다.)
+ */
 @theme {
-  --color-brand-50: #eef2ff;
-  --color-brand-100: #e0e7ff;
-  --color-brand-200: #c7d2fe;
-  --color-brand-400: #818cf8;
-  --color-brand-500: #6366f1;
-  --color-brand-600: #4f46e5;
-  --color-brand-700: #4338ca;
+  --color-canvas: var(--c-canvas);
+  --color-surface: var(--c-surface);
+  --color-raised: var(--c-raised);
+  --color-line: var(--c-line);
+  --color-line-strong: var(--c-line-strong);
+
+  --color-ink: var(--c-ink);
+  --color-ink-soft: var(--c-ink-soft);
+  --color-ink-faint: var(--c-ink-faint);
+
+  --color-accent: var(--c-accent);
+  --color-accent-ink: var(--c-accent-ink);
+  --color-accent-soft: var(--c-accent-soft);
+
+  --color-danger: var(--c-danger);
+  --color-danger-soft: var(--c-danger-soft);
+  --color-warn: var(--c-warn);
+  --color-warn-soft: var(--c-warn-soft);
+  --color-done: var(--c-done);
+  --color-done-soft: var(--c-done-soft);
+
+  --font-sans: var(--font-pretendard), -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+    "Malgun Gothic", "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+
+  --radius-card: 10px;
+  --shadow-pop: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px -8px rgb(0 0 0 / 0.16);
 }
 
 :root {
-  --background: #ffffff;
-  --foreground: #0f172a;
+  /* 중성 회색. 주 버튼은 먹색이고 파랑은 링크·활성 표시·차트에만 쓴다. */
+  --c-canvas: #f7f7f8;
+  --c-surface: #ffffff;
+  --c-raised: #f1f1f3;
+  --c-line: #e4e4e7;
+  --c-line-strong: #d3d3d8;
+
+  --c-ink: #18181b;
+  --c-ink-soft: #5c5c66;
+  --c-ink-faint: #9b9ba4;
+
+  --c-accent: #2f6feb;
+  --c-accent-ink: #1d4fb8;
+  --c-accent-soft: #eef3fe;
+
+  --c-danger: #d63b30;
+  --c-danger-soft: #fdf1f0;
+  --c-warn: #b7791f;
+  --c-warn-soft: #fdf6e7;
+  --c-done: #15803d;
+  --c-done-soft: #edf7ef;
+
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #020617;
-    --foreground: #e2e8f0;
+    --c-canvas: #0c0c0d;
+    --c-surface: #151517;
+    --c-raised: #1f1f23;
+    --c-line: #27272b;
+    --c-line-strong: #3a3a41;
+
+    --c-ink: #f2f2f3;
+    --c-ink-soft: #a3a3ac;
+    --c-ink-faint: #6f6f78;
+
+    --c-accent: #7aa2ff;
+    --c-accent-ink: #a7c2ff;
+    --c-accent-soft: #172038;
+
+    --c-danger: #f0736a;
+    --c-danger-soft: #2a1614;
+    --c-warn: #e0a83c;
+    --c-warn-soft: #2a2011;
+    --c-done: #4ade80;
+    --c-done-soft: #12251a;
+
+    color-scheme: dark;
   }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--c-canvas);
+  color: var(--c-ink);
+  /* 작업 도구에 가까운 밀도. 제목만 조금 키워서 위계를 만든다. */
+  font-size: 14px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-/* 로고의 그라디언트를 텍스트에 쓰기 위한 유틸 */
+/* 한글은 자간을 조금 좁히면 훨씬 정돈돼 보인다. */
+h1, h2, h3 {
+  letter-spacing: -0.015em;
+}
+
+/* 포커스 표시는 브라우저 기본(파란 두꺼운 테두리)보다 얇고 토큰 색을 따른다. */
+:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 1px;
+}
+
+/* 로고 워드마크 전용. 다른 곳에 그라디언트를 쓰지 않는다. */
 .brand-gradient-text {
   background-image: linear-gradient(100deg, #6d5ef0 0%, #4f8ef7 55%, #22c1f3 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+
+/* 목록·채팅처럼 자체 스크롤이 생기는 영역의 스크롤바를 얇게 */
+@supports (scrollbar-width: thin) {
+  .thin-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: var(--c-line-strong) transparent;
+  }
+}
+
+/* <dialog> 열림·닫힘 전환. @starting-style 이 없으면 그냥 즉시 나타난다(기능 손실 없음). */
+dialog {
+  transition: opacity 140ms ease, translate 140ms ease, overlay 140ms allow-discrete, display 140ms allow-discrete;
+  opacity: 0;
+  translate: 0 4px;
+}
+dialog[open] {
+  opacity: 1;
+  translate: 0 0;
+}
+@starting-style {
+  dialog[open] {
+    opacity: 0;
+    translate: 0 4px;
+  }
+}
+dialog::backdrop {
+  background: rgb(9 9 11 / 0.45);
+  backdrop-filter: blur(2px);
 }

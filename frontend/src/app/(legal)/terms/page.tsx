@@ -11,7 +11,7 @@ export default function TermsPage() {
     <>
       <header>
         <h1>이용약관</h1>
-        <p className="mt-2 text-slate-500">시행일 2026년 9월 24일</p>
+        <p className="mt-2 text-ink-faint">시행일 2026년 9월 24일</p>
       </header>
 
       <section>
@@ -70,7 +70,7 @@ export default function TermsPage() {
       <section>
         <h2>제6조 (서비스의 제공과 중단)</h2>
         <p>
-          <strong className="text-slate-900 dark:text-slate-100">
+          <strong className="text-ink">
             이 서비스는 개인이 포트폴리오 목적으로 무상 운영합니다.
           </strong>{' '}
           그 성격상 다음 사항에 동의하는 것을 전제로 제공됩니다.
@@ -133,7 +133,7 @@ export default function TermsPage() {
           <Link href="/privacy">개인정보처리방침</Link> 에 자세히 적혀 있습니다.
         </p>
         <p>
-          다만 <strong className="text-slate-900 dark:text-slate-100">
+          다만 <strong className="text-ink">
             혼자 관리자로 있는 워크스페이스가 남아 있으면 탈퇴할 수 없습니다.
           </strong>{' '}
           관리자가 없는 워크스페이스는 다른 구성원이 관리할 수 없기 때문입니다. 다른 멤버를 관리자로 지정하거나
@@ -169,7 +169,7 @@ export default function TermsPage() {
         </p>
       </section>
 
-      <footer className="border-t border-slate-200 pt-6 text-slate-500 dark:border-slate-800">
+      <footer className="border-t border-line pt-6 text-ink-faint">
         문의 <a href="mailto:jangisuk94@gmail.com">jangisuk94@gmail.com</a>
       </footer>
     </>

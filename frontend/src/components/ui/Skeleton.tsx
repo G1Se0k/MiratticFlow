@@ -6,7 +6,7 @@
  * 크기를 모르는 작은 영역은 그대로 스피너를 쓴다.
  */
 export function Skeleton({ className = '' }: { className?: string }) {
-  return <div className={`animate-pulse rounded-md bg-slate-200 dark:bg-slate-800 ${className}`} aria-hidden />;
+  return <div className={`animate-pulse rounded-md bg-raised ${className}`} aria-hidden />;
 }
 
 /** 목록 자리. 몇 줄을 잡아 둘지는 쓰는 쪽이 정한다. */

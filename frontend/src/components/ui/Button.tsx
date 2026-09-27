@@ -1,28 +1,33 @@
 import type { ButtonHTMLAttributes } from 'react';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
-  size?: 'sm' | 'md';
+  variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'dangerSolid';
+  size?: 'sm' | 'md' | 'icon';
 }
 
+/**
+ * 주 버튼은 먹색이다. 강조색(파랑)은 링크와 활성 표시에만 쓴다 —
+ * 화면마다 파란 버튼이 있으면 무엇이 중요한지 구별되지 않는다.
+ */
 const VARIANT = {
-  primary: 'bg-brand-600 text-white hover:bg-brand-700',
-  secondary:
-    'border border-slate-300 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800',
-  ghost: 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800',
-  danger: 'text-red-600 hover:bg-red-50 dark:hover:bg-red-950',
+  primary: 'bg-ink text-canvas hover:opacity-90',
+  secondary: 'border border-line bg-surface text-ink hover:bg-raised',
+  ghost: 'text-ink-soft hover:bg-raised hover:text-ink',
+  danger: 'text-danger hover:bg-danger-soft',
+  dangerSolid: 'bg-danger text-white hover:opacity-90',
 } as const;
 
 const SIZE = {
-  sm: 'h-8 px-3 text-xs',
-  md: 'h-10 px-4 text-sm',
+  sm: 'h-7 gap-1 px-2.5 text-[13px]',
+  md: 'h-9 gap-1.5 px-3.5 text-[13px]',
+  icon: 'size-8',
 } as const;
 
 export function Button({ variant = 'primary', size = 'md', className = '', children, ...props }: ButtonProps) {
   return (
     <button
       {...props}
-      className={`inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${VARIANT[variant]} ${SIZE[size]} ${className}`}
+      className={`inline-flex items-center justify-center rounded-md font-medium whitespace-nowrap transition-[background-color,opacity,border-color] disabled:pointer-events-none disabled:opacity-45 ${VARIANT[variant]} ${SIZE[size]} ${className}`}
     >
       {children}
     </button>

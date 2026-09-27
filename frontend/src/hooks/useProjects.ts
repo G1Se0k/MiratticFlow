@@ -10,8 +10,13 @@ export const projectKeys = {
   stats: (id: number) => ['projects', id, 'stats'] as const,
 };
 
+/** 사이드바는 활성 워크스페이스가 없을 때 0 을 넘긴다. 그때 요청하면 404 만 찍힌다. */
 export const useProjects = (workspaceId: number) =>
-  useQuery({ queryKey: projectKeys.list(workspaceId), queryFn: () => projectApi.list(workspaceId) });
+  useQuery({
+    queryKey: projectKeys.list(workspaceId),
+    queryFn: () => projectApi.list(workspaceId),
+    enabled: workspaceId > 0,
+  });
 
 /** id 는 부모 데이터(이슈 등)가 로딩되기 전엔 0 이다. 그때 요청하면 404 만 찍힌다. */
 export const useProject = (id: number) =>

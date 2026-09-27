@@ -3,9 +3,10 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { FormError, FormField } from '@/components/ui/FormField';
-import { Modal } from '@/components/ui/Modal';
+import { Modal, ModalActions } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { useMe, useUpdateMe, useWithdraw } from '@/hooks/useAuth';
 import type { UpdateMePayload } from '@/lib/api/auth';
@@ -41,52 +42,52 @@ export default function AccountPage() {
   };
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">계정</h1>
+    <div className="flex max-w-2xl flex-col gap-7">
+      <header className="flex items-center gap-3">
+        <Avatar name={user.name} />
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-[17px] font-semibold">{user.name}</h1>
+          <p className="truncate text-[13px] text-ink-soft">{user.email ?? '이메일이 등록되지 않았습니다'}</p>
+        </div>
         <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>
           수정
         </Button>
-      </div>
+      </header>
 
-      <dl className="divide-y divide-slate-200 border-y border-slate-200 text-sm dark:divide-slate-800 dark:border-slate-800">
-        <div className="flex justify-between py-3">
-          <dt className="text-slate-500">이름</dt>
-          <dd>{user.name}</dd>
-        </div>
-        <div className="flex justify-between py-3">
-          <dt className="text-slate-500">이메일</dt>
-          <dd>{user.email ?? '등록되지 않음'}</dd>
-        </div>
-        <div className="flex justify-between py-3">
-          <dt className="text-slate-500">로그인 방식</dt>
-          <dd>{PROVIDER_LABEL[user.provider]}</dd>
-        </div>
+      <dl className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface text-[13px]">
+        <Row label="이름">{user.name}</Row>
+        <Row label="이메일">{user.email ?? <span className="text-ink-faint">등록되지 않음</span>}</Row>
+        <Row label="로그인 방식">{PROVIDER_LABEL[user.provider]}</Row>
       </dl>
 
       {editing && <EditProfileModal user={user} onClose={() => setEditing(false)} />}
 
-      <section className="rounded-lg border border-red-200 p-4 dark:border-red-900">
-        <h2 className="text-sm font-semibold text-red-600">회원 탈퇴</h2>
-        <p className="mt-2 text-sm text-slate-500">
+      <section className="flex flex-col gap-2 rounded-card border border-line bg-surface p-4">
+        <h2 className="text-[13px] font-semibold">회원 탈퇴</h2>
+        <p className="text-[13px] leading-relaxed text-ink-soft">
           이메일 · 이름 · 비밀번호와 소셜 로그인 정보가 삭제되고, 참여 중인 워크스페이스와 프로젝트에서 빠집니다.
           이미 작성한 이슈 · 댓글 · 채팅은 팀의 기록이라 남으며 작성자가 &lsquo;탈퇴한 사용자&rsquo;로 표시됩니다.
-          자세한 내용은 <Link href="/privacy" className="underline">개인정보처리방침</Link> 을 참고해주세요.
+          되돌릴 수 없습니다. 자세한 내용은{' '}
+          <Link href="/privacy" className="text-accent hover:underline">
+            개인정보처리방침
+          </Link>
+          을 참고해주세요.
         </p>
-        <p className="mt-2 text-sm text-slate-500">되돌릴 수 없습니다.</p>
-        <Button variant="danger" size="sm" className="mt-3" onClick={() => setOpen(true)}>
+        <Button variant="danger" size="sm" className="mt-1 self-start" onClick={() => setOpen(true)}>
           회원 탈퇴
         </Button>
       </section>
 
-      <Modal open={open} onClose={close} title="정말 탈퇴하시겠어요?">
-        <div className="flex flex-col gap-4">
-          <p className="text-sm text-slate-500">
-            확인을 위해 <b className="text-slate-900 dark:text-slate-100">{CONFIRM_WORD}</b> 를 입력해주세요.
-          </p>
-
+      <Modal
+        open={open}
+        onClose={close}
+        title="정말 탈퇴하시겠어요?"
+        description="계정 정보가 삭제되고 되돌릴 수 없습니다."
+      >
+        <div className="flex flex-col gap-3.5">
           <FormField
-            label={`"${CONFIRM_WORD}" 입력`}
+            label={`확인을 위해 "${CONFIRM_WORD}" 를 입력해주세요`}
+            placeholder={CONFIRM_WORD}
             value={confirmWord}
             onChange={(e) => setConfirmWord(e.target.value)}
           />
@@ -103,21 +104,30 @@ export default function AccountPage() {
 
           {withdraw.isError && <FormError>{withdraw.error.message}</FormError>}
 
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={close}>
+          <ModalActions>
+            <Button variant="ghost" size="sm" onClick={close}>
               취소
             </Button>
             <Button
-              variant="danger"
+              variant="dangerSolid"
               size="sm"
               disabled={!canSubmit || withdraw.isPending}
               onClick={() => withdraw.mutate(needsPassword ? password : null)}
             >
               {withdraw.isPending ? '처리 중...' : '탈퇴하기'}
             </Button>
-          </div>
+          </ModalActions>
         </div>
       </Modal>
+    </div>
+  );
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+      <dt className="text-ink-soft">{label}</dt>
+      <dd className="min-w-0 truncate">{children}</dd>
     </div>
   );
 }
@@ -185,7 +195,7 @@ function EditProfileModal({ user, onClose }: { user: UserResponse; onClose: () =
 
   return (
     <Modal open onClose={onClose} title="계정 정보 수정">
-      <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
+      <form className="flex flex-col gap-3.5" onSubmit={submit} noValidate>
         <FormField
           label="이름"
           autoComplete="nickname"
@@ -209,9 +219,14 @@ function EditProfileModal({ user, onClose }: { user: UserResponse; onClose: () =
               })}
             />
             <FormField
-              label="새 비밀번호 (바꾸지 않으려면 비워두세요)"
+              label="새 비밀번호"
               type="password"
               autoComplete="new-password"
+              hint={
+                newPassword.length > 0
+                  ? '비밀번호를 바꾸면 모든 기기에서 로그아웃됩니다.'
+                  : '바꾸지 않으려면 비워두세요.'
+              }
               error={errors.newPassword?.message}
               {...register('newPassword', {
                 minLength: { value: 8, message: '비밀번호는 8자 이상이어야 합니다.' },
@@ -240,28 +255,23 @@ function EditProfileModal({ user, onClose }: { user: UserResponse; onClose: () =
                 })}
               />
             )}
-            {newPassword.length > 0 && (
-              <p className="text-xs text-slate-500">
-                비밀번호를 바꾸면 모든 기기에서 로그아웃되고 다시 로그인해야 합니다.
-              </p>
-            )}
           </>
         ) : (
-          <p className="text-xs text-slate-500">
+          <p className="text-xs leading-relaxed text-ink-faint">
             {PROVIDER_LABEL[user.provider]} 로 로그인한 계정은 이메일과 비밀번호를 여기서 바꿀 수 없습니다.
           </p>
         )}
 
         {update.isError && <FormError>{update.error.message}</FormError>}
 
-        <div className="flex justify-end gap-2">
+        <ModalActions>
           <Button type="button" variant="ghost" size="sm" onClick={onClose}>
             취소
           </Button>
           <Button type="submit" size="sm" disabled={update.isPending}>
             {update.isPending ? '저장 중...' : '저장'}
           </Button>
-        </div>
+        </ModalActions>
       </form>
     </Modal>
   );

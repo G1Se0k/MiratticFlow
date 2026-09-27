@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
-import { Modal } from '@/components/ui/Modal';
+import { Icon } from '@/components/ui/Icon';
+import { Modal, ModalActions } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { useTopicMutations, useTopics } from '@/hooks/useChat';
 import type { Topic } from '@/lib/api/chat';
@@ -27,52 +28,59 @@ export function TopicSection({
   const [creating, setCreating] = useState(false);
 
   return (
-    <section className="flex flex-col gap-3">
+    <section className="flex flex-col gap-2.5">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-medium text-slate-500">주제 {topics?.length ?? 0}개</h2>
+        <h2 className="text-[13px] font-semibold">주제 {topics?.length ?? 0}</h2>
         <Button size="sm" variant="secondary" onClick={() => setCreating(true)}>
+          <Icon name="plus" className="size-3.5" />
           주제 만들기
         </Button>
       </div>
 
       {topics?.length === 0 ? (
-        <p className="text-sm text-slate-400">
-          이 이슈로 따로 이야기할 주제를 만들 수 있습니다.
-        </p>
+        <p className="text-[13px] text-ink-faint">이 이슈로 따로 이야기할 주제를 만들 수 있습니다.</p>
       ) : (
-        <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 dark:divide-slate-800 dark:border-slate-800">
-          {topics?.map((topic) => (
-            <li key={topic.id} className="flex items-center gap-3 px-4 py-3">
-              <button
-                onClick={() => onOpen(topic.id === openTopicId ? null : topic)}
-                aria-current={topic.id === openTopicId ? 'true' : undefined}
-                className={`min-w-0 flex-1 text-left ${topic.id === openTopicId ? 'text-brand-700 dark:text-brand-300' : ''}`}
-              >
-                <p className="truncate text-sm font-medium"># {topic.name}</p>
-                <p className="truncate text-xs text-slate-500">
-                  {topic.description || '설명 없음'} · {topic.createdByName}
-                </p>
-              </button>
-              {topic.canManage && (
-                <Button
-                  size="sm"
-                  variant="danger"
-                  className="shrink-0"
-                  onClick={() =>
-                    remove.mutate(topic.id, {
-                      onSuccess: () => {
-                        if (topic.id === openTopicId) onOpen(null);
-                        toast('주제를 삭제했습니다.');
-                      },
-                      onError: (error) => toast(error.message, 'error'),
-                    })
-                  }
+        <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
+          {topics?.map((topic) => {
+            const active = topic.id === openTopicId;
+            return (
+              <li key={topic.id} className={`flex items-center gap-2 px-3 py-2.5 ${active ? 'bg-accent-soft' : ''}`}>
+                <button
+                  onClick={() => onOpen(active ? null : topic)}
+                  aria-current={active ? 'true' : undefined}
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left"
                 >
-                  삭제
-                </Button>
-              )}
-            </li>
-          ))}
+                  <Icon name="message" className={`size-4 ${active ? 'text-accent' : 'text-ink-faint'}`} />
+                  <span className="min-w-0">
+                    <span className={`block truncate text-[13px] font-medium ${active ? 'text-accent-ink' : ''}`}>
+                      {topic.name}
+                    </span>
+                    <span className="block truncate text-xs text-ink-soft">
+                      {topic.description || '설명 없음'} · {topic.createdByName}
+                    </span>
+                  </span>
+                </button>
+                {topic.canManage && (
+                  <Button
+                    size="icon"
+                    variant="danger"
+                    aria-label={`${topic.name} 주제 삭제`}
+                    onClick={() =>
+                      remove.mutate(topic.id, {
+                        onSuccess: () => {
+                          if (active) onOpen(null);
+                          toast('주제를 삭제했습니다.');
+                        },
+                        onError: (error) => toast(error.message, 'error'),
+                      })
+                    }
+                  >
+                    <Icon name="trash" className="size-3.5" />
+                  </Button>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
 
@@ -105,7 +113,7 @@ function CreateTopicModal({
   return (
     <Modal open={open} onClose={onClose} title="새 주제">
       <form
-        className="flex flex-col gap-4"
+        className="flex flex-col gap-3.5"
         onSubmit={(e) => {
           e.preventDefault();
           create.mutate(
@@ -129,14 +137,14 @@ function CreateTopicModal({
           value={description}
           onChange={(e) => setDescription(e.target.value)}
         />
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onClose}>
+        <ModalActions>
+          <Button type="button" variant="ghost" size="sm" onClick={onClose}>
             취소
           </Button>
-          <Button type="submit" disabled={create.isPending || name.trim().length === 0}>
+          <Button type="submit" size="sm" disabled={create.isPending || name.trim().length === 0}>
             만들기
           </Button>
-        </div>
+        </ModalActions>
       </form>
     </Modal>
   );

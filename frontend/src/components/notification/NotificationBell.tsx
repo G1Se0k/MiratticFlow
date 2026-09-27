@@ -1,38 +1,31 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
+import { Icon, type IconName } from '@/components/ui/Icon';
 import { Spinner } from '@/components/ui/Spinner';
+import { useDismiss } from '@/hooks/useDismiss';
 import { useNotificationMutations, useNotifications, useUnreadCount } from '@/hooks/useNotifications';
 import type { Notification, NotificationType } from '@/lib/api/notification';
 
-const ICON: Record<NotificationType, string> = {
-  ISSUE_ASSIGNED: '🎯',
-  ISSUE_STATUS_CHANGED: '🔄',
-  COMMENT_ADDED: '💬',
-  PROJECT_JOINED: '📁',
+const ICON: Record<NotificationType, IconName> = {
+  ISSUE_ASSIGNED: 'target',
+  ISSUE_STATUS_CHANGED: 'refresh',
+  COMMENT_ADDED: 'message',
+  PROJECT_JOINED: 'folder',
 };
 
-export function NotificationBell() {
+/**
+ * 목록이 나타나는 위치는 쓰는 쪽이 정한다.
+ * 사이드바 맨 아래에서는 위로, 모바일 상단바에서는 아래로 펼쳐야 화면을 벗어나지 않는다.
+ */
+export function NotificationBell({ panelClass = 'right-0 top-10' }: { panelClass?: string }) {
   const [open, setOpen] = useState(false);
   const { data: unread = 0 } = useUnreadCount();
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // 바깥을 누르면 닫는다. 목록이 화면을 덮고 있으므로 Esc 도 받는다.
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (e: PointerEvent) => {
-      if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKeyDown = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
-    document.addEventListener('pointerdown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [open]);
+  useDismiss(open, containerRef, () => setOpen(false));
 
   return (
     <div ref={containerRef} className="relative">
@@ -40,22 +33,22 @@ export function NotificationBell() {
         onClick={() => setOpen((prev) => !prev)}
         aria-label={unread > 0 ? `알림 ${unread}개` : '알림'}
         aria-expanded={open}
-        className="relative flex h-9 w-9 items-center justify-center rounded-md text-lg transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
+        className="relative flex size-8 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-raised hover:text-ink"
       >
-        🔔
+        <Icon name="bell" className="size-4.5" />
         {unread > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium text-white">
+          <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-semibold text-white">
             {unread > 99 ? '99+' : unread}
           </span>
         )}
       </button>
 
-      {open && <NotificationList onClose={() => setOpen(false)} />}
+      {open && <NotificationList panelClass={panelClass} onClose={() => setOpen(false)} />}
     </div>
   );
 }
 
-function NotificationList({ onClose }: { onClose: () => void }) {
+function NotificationList({ panelClass, onClose }: { panelClass: string; onClose: () => void }) {
   const router = useRouter();
   const { data: notifications, isPending } = useNotifications(true);
   const { markRead, markAllRead } = useNotificationMutations();
@@ -68,9 +61,11 @@ function NotificationList({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="absolute right-0 top-11 z-30 w-80 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-900">
-      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2 dark:border-slate-800">
-        <p className="text-sm font-medium">알림</p>
+    <div
+      className={`absolute z-30 w-80 overflow-hidden rounded-card border border-line bg-surface shadow-pop ${panelClass}`}
+    >
+      <div className="flex items-center justify-between border-b border-line px-3 py-2">
+        <p className="text-[13px] font-semibold">알림</p>
         {hasUnread && (
           <Button size="sm" variant="ghost" onClick={() => markAllRead.mutate()} disabled={markAllRead.isPending}>
             모두 읽음
@@ -78,34 +73,37 @@ function NotificationList({ onClose }: { onClose: () => void }) {
         )}
       </div>
 
-      <div className="max-h-96 overflow-y-auto">
+      <div className="thin-scroll max-h-96 overflow-y-auto">
         {isPending ? (
-          <div className="p-6">
-            <Spinner />
-          </div>
+          <Spinner />
         ) : notifications?.length === 0 ? (
-          <p className="p-6 text-center text-sm text-slate-400">아직 알림이 없습니다.</p>
+          <p className="px-3 py-8 text-center text-[13px] text-ink-faint">아직 알림이 없습니다.</p>
         ) : (
-          <ul className="divide-y divide-slate-200 dark:divide-slate-800">
+          <ul className="divide-y divide-line">
             {notifications?.map((notification) => (
               <li key={notification.id}>
                 <button
                   onClick={() => open(notification)}
-                  className={`flex w-full gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-800 ${
-                    notification.read ? '' : 'bg-brand-50/60 dark:bg-brand-700/10'
+                  className={`flex w-full gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-raised ${
+                    notification.read ? '' : 'bg-accent-soft/60'
                   }`}
                 >
-                  <span aria-hidden className="text-base leading-5">
-                    {ICON[notification.type]}
-                  </span>
+                  <Icon
+                    name={ICON[notification.type]}
+                    className={`mt-0.5 size-4 ${notification.read ? 'text-ink-faint' : 'text-accent'}`}
+                  />
                   <span className="min-w-0 flex-1">
-                    <span className={`block text-sm ${notification.read ? 'text-slate-500' : 'font-medium'}`}>
+                    <span
+                      className={`block text-[13px] leading-snug ${notification.read ? 'text-ink-soft' : 'font-medium'}`}
+                    >
                       {notification.content}
                     </span>
-                    <span className="block text-xs text-slate-400">{formatTime(notification.createdAt)}</span>
+                    <span className="mt-0.5 block text-[11px] text-ink-faint">
+                      {formatTime(notification.createdAt)}
+                    </span>
                   </span>
                   {!notification.read && (
-                    <span aria-label="안 읽음" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand-600" />
+                    <span aria-label="안 읽음" className="mt-1.5 size-1.5 shrink-0 rounded-full bg-accent" />
                   )}
                 </button>
               </li>

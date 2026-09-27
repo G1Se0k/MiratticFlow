@@ -3,7 +3,8 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/Button';
-import { LogoBlock } from '@/components/ui/Logo';
+import { Icon } from '@/components/ui/Icon';
+import { Notice } from '@/components/ui/Notice';
 import { Spinner } from '@/components/ui/Spinner';
 import { useToast } from '@/components/ui/Toast';
 import { workspaceApi } from '@/lib/api/workspace';
@@ -29,12 +30,9 @@ export default function InvitePage() {
 
   if (isError || !preview) {
     return (
-      <div className="flex flex-col items-center gap-4 py-16 text-center">
-        <LogoBlock />
-        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
-          {error?.message ?? '초대를 확인할 수 없습니다.'}
-        </p>
-        <Button variant="secondary" onClick={() => router.push('/workspaces')}>
+      <div className="mx-auto flex max-w-sm flex-col gap-3 py-10">
+        <Notice tone="error">{error?.message ?? '초대를 확인할 수 없습니다.'}</Notice>
+        <Button variant="secondary" size="sm" className="self-center" onClick={() => router.push('/workspaces')}>
           내 워크스페이스로
         </Button>
       </div>
@@ -54,24 +52,28 @@ export default function InvitePage() {
   };
 
   return (
-    <div className="flex flex-col items-center gap-6 py-12 text-center">
-      <LogoBlock />
+    <div className="mx-auto flex max-w-sm flex-col items-center gap-5 rounded-card border border-line bg-surface px-6 py-10 text-center">
+      <span className="flex size-10 items-center justify-center rounded-full bg-raised text-ink-soft">
+        <Icon name="layers" className="size-5" />
+      </span>
       <div>
-        <p className="text-sm text-slate-500">다음 워크스페이스에 초대되었습니다</p>
-        <p className="mt-1 text-2xl font-semibold tracking-tight">{preview.workspaceName}</p>
+        <p className="text-[13px] text-ink-soft">다음 워크스페이스에 초대되었습니다</p>
+        <p className="mt-1 text-[17px] font-semibold">{preview.workspaceName}</p>
       </div>
 
       {preview.alreadyMember ? (
         <>
-          <p className="text-sm text-slate-500">이미 참여 중인 워크스페이스입니다.</p>
-          <Button onClick={() => router.replace(`/workspaces/${preview.workspaceId}`)}>워크스페이스로 이동</Button>
+          <p className="text-[13px] text-ink-soft">이미 참여 중인 워크스페이스입니다.</p>
+          <Button size="sm" onClick={() => router.replace(`/workspaces/${preview.workspaceId}`)}>
+            워크스페이스로 이동
+          </Button>
         </>
       ) : (
         <div className="flex gap-2">
-          <Button variant="ghost" onClick={() => router.push('/workspaces')}>
+          <Button variant="ghost" size="sm" onClick={() => router.push('/workspaces')}>
             나중에
           </Button>
-          <Button onClick={join} disabled={joining}>
+          <Button size="sm" onClick={join} disabled={joining}>
             {joining ? '참여하는 중...' : '참여하기'}
           </Button>
         </div>
