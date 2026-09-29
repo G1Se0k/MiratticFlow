@@ -1,0 +1,44 @@
+name: Uptime
+
+# Mirattic Auth · Sync · Flow 가 살아 있는지 5분마다 확인한다. 실패하면 이 워크플로가 실패하고,
+# GitHub 가 실패 알림 메일을 보낸다 (Settings → Notifications → Actions 에서 이메일 켜기).
+# 이 저장소는 공개라 Actions 시간이 무료다. 공개 URL 만 부르므로 비밀값이 없다.
+# GitHub 의 예약 실행은 몇 분씩 늦을 수 있고, 저장소에 60일간 활동이 없으면 멈춘다.
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check endpoints
+        run: |
+          # "주소 기대하는_상태코드". 일시적인 끊김은 20초 간격 3번까지 다시 본다.
+          checks=(
+            "https://auth.mirattic.com/actuator/health 200"
+            "https://sync.mirattic.com/actuator/health 200"
+            "https://flow.mirattic.com/login 200"
+            "https://flow.mirattic.com/api/users/me 401"
+          )
+          failed=0
+          for c in "${checks[@]}"; do
+            set -- $c
+            code=000
+            for attempt in 1 2 3; do
+              code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$1" || true)
+              [ "$code" = "$2" ] && break
+              [ $attempt -lt 3 ] && sleep 20
+            done
+            if [ "$code" = "$2" ]; then
+              echo "ok   $1 ($code)"
+            else
+              echo "::error::$1 answered $code, expected $2"
+              failed=1
+            fi
+          done
+          exit $failed
