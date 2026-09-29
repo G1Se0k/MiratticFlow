@@ -39,7 +39,7 @@ public class NotificationSender {
                 .forEach(user -> targets.putIfAbsent(user.getId(), user));
 
         notificationRepository.saveAll(targets.values().stream()
-                .map(user -> Notification.of(user, type, content, link))
+                .map(user -> Notification.of(user, type, content, link, actorId))
                 .toList());
     }
 }

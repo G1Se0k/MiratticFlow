@@ -33,6 +33,17 @@ public class ChatMessage extends BaseTimeEntity {
     @Column(nullable = false, length = 10)
     private MessageType type;
 
+    /**
+     * SYSTEM 문구에 이름이 들어간 사람. 맨 앞 "{이름}님이 …"(lead)와 끝 "… {이름}님으로 지정했습니다."(assignee).
+     * 그 사람이 탈퇴하면 그 자리의 이름만 "탈퇴한 사용자"로 바꾼다 (UserService.withdraw) — 문구 전체를 이름으로
+     * 찾지 않으므로 같은 이름의 다른 사람 기록은 건드리지 않는다.
+     */
+    @Column(name = "lead_user_id")
+    private Long leadUserId;
+
+    @Column(name = "assignee_user_id")
+    private Long assigneeUserId;
+
     private ChatMessage(Topic topic, User sender, String content, MessageType type) {
         this.topic = topic;
         this.sender = sender;
@@ -44,7 +55,10 @@ public class ChatMessage extends BaseTimeEntity {
         return new ChatMessage(topic, sender, content, MessageType.USER);
     }
 
-    public static ChatMessage system(Topic topic, String content) {
-        return new ChatMessage(topic, null, content, MessageType.SYSTEM);
+    public static ChatMessage system(Topic topic, String content, Long leadUserId, Long assigneeUserId) {
+        ChatMessage message = new ChatMessage(topic, null, content, MessageType.SYSTEM);
+        message.leadUserId = leadUserId;
+        message.assigneeUserId = assigneeUserId;
+        return message;
     }
 }

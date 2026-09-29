@@ -35,12 +35,22 @@ public class SystemMessageSender {
      * 생기면 @TransactionalEventListener(AFTER_COMMIT) 으로 옮긴다.
      */
     @Transactional
-    public void send(Long projectId, String content) {
-        topicRepository.findProjectChat(projectId).ifPresent(topic -> broadcast(topic, content));
+    public void send(Long projectId, String content, Long leadUserId) {
+        send(projectId, content, leadUserId, null);
     }
 
-    private void broadcast(Topic topic, String content) {
-        ChatMessage saved = messageRepository.save(ChatMessage.system(topic, content));
+    /**
+     * leadUserId: 문구 맨 앞 "{이름}님이"의 그 사람. assigneeUserId: 끝 "{이름}님으로 지정했습니다."의 그 사람.
+     * 탈퇴하면 그 자리의 이름이 "탈퇴한 사용자"로 바뀐다 (ChatMessage).
+     */
+    @Transactional
+    public void send(Long projectId, String content, Long leadUserId, Long assigneeUserId) {
+        topicRepository.findProjectChat(projectId)
+                .ifPresent(topic -> broadcast(topic, content, leadUserId, assigneeUserId));
+    }
+
+    private void broadcast(Topic topic, String content, Long leadUserId, Long assigneeUserId) {
+        ChatMessage saved = messageRepository.save(ChatMessage.system(topic, content, leadUserId, assigneeUserId));
         messagingTemplate.convertAndSend(
                 "/topic/thread/" + topic.getId(), ChatMessageResponse.from(saved));
     }

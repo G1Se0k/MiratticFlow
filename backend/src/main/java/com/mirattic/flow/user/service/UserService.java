@@ -1,5 +1,6 @@
 package com.mirattic.flow.user.service;
 
+import com.mirattic.flow.chat.repository.ChatMessageRepository;
 import com.mirattic.flow.global.exception.BusinessException;
 import com.mirattic.flow.global.response.ErrorCode;
 import com.mirattic.flow.issue.repository.IssueRepository;
@@ -36,6 +37,7 @@ public class UserService {
     private final WorkspaceMemberRepository workspaceMemberRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final NotificationRepository notificationRepository;
+    private final ChatMessageRepository chatMessageRepository;
     private final IssueRepository issueRepository;
     private final WithdrawalRepository withdrawalRepository;
 
@@ -130,8 +132,16 @@ public class UserService {
         // 아래 벌크 쿼리들은 clearAutomatically = true 라 실행 후 영속성 컨텍스트를 비운다.
         // 그 뒤에 엔티티를 고치면 이미 준영속 상태여서 변경 감지가 일어나지 않고,
         // 멤버십만 지워진 채 개인정보가 그대로 남는다 (204 를 받고도 파기되지 않는다).
+        String formerName = user.getName();
         user.withdraw();
         userRepository.saveAndFlush(user);
+
+        // 다른 사람의 기록 문구(채팅 활동 줄, 댓글 알림)에 남은 예전 이름도 "탈퇴한 사용자"로 바꾼다.
+        // 그 사람 자리로 기록된 행에서 그 자리만 바꾼다 (ChatMessage.leadUserId · assigneeUserId, Notification.actorId).
+        String shown = user.getName();
+        chatMessageRepository.replaceLeadName(userId, formerName + "님", shown + "님");
+        chatMessageRepository.replaceAssigneeName(userId, formerName + "님으로 지정했습니다.", shown + "님으로 지정했습니다.");
+        notificationRepository.replaceLeadName(userId, formerName + "님", shown + "님");
 
         issueRepository.unassignByUserId(userId);
         notificationRepository.deleteByUserId(userId);

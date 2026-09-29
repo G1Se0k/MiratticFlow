@@ -12,6 +12,7 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletResponse;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -233,6 +234,74 @@ class UserApiTest extends ApiTestSupport {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("혼자 관리자인 워크스페이스")));
         authed(get("/api/users/me"), me.token()).andExpect(status().isOk());
+    }
+
+    @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbc;
+
+    /** 워크스페이스에 들여보내고 프로젝트 참여자로 넣는다 ("{이름}님이 참여했습니다."). */
+    private void join(String ownerToken, long projectId, Signed who) throws Exception {
+        authed(post("/api/invites/{code}/accept", inviteCode(ownerToken, workspaceIdOfProject(projectId, ownerToken))),
+                who.token()).andExpect(status().isOk());
+        authed(post("/api/projects/{id}/members", projectId).contentType(MediaType.APPLICATION_JSON)
+                .content(json(new com.mirattic.flow.project.dto.AddMemberRequest(userIdOf(who.token())))), ownerToken)
+                .andExpect(status().isCreated());
+    }
+
+    private long issue(String token, long projectId, String title) throws Exception {
+        return id(bodyOf(authed(post("/api/projects/{id}/issues", projectId).contentType(MediaType.APPLICATION_JSON)
+                .content(json(new com.mirattic.flow.issue.dto.IssueRequest(title, null, null, null, null, null))), token)));
+    }
+
+    private void assign(String token, long issueId, long assigneeId) throws Exception {
+        authed(patch("/api/issues/{id}", issueId).contentType(MediaType.APPLICATION_JSON)
+                .content(json(new com.mirattic.flow.issue.dto.IssueRequest("이슈", null, null, null, assigneeId, null))), token)
+                .andExpect(status().isOk());
+    }
+
+    private void comment(String token, long issueId) throws Exception {
+        authed(post("/api/issues/{id}/comments", issueId).contentType(MediaType.APPLICATION_JSON)
+                .content(json(new com.mirattic.flow.comment.dto.CommentRequest("확인했습니다"))), token)
+                .andExpect(status().isCreated());
+    }
+
+    private List<String> texts(String sql, Object... args) {
+        return jdbc.queryForList(sql, String.class, args);
+    }
+
+    @Test
+    @DisplayName("탈퇴하면 다른 사람의 기록 문구 속 이름도 '탈퇴한 사용자'가 된다 — 같은 이름이 들어간 다른 사람 기록은 그대로")
+    void withdrawalReplacesTheNameInOthersRecords() throws Exception {
+        String owner = newUserToken("오너");
+        long projectId = setUpProject(owner);
+        Signed leaving = user("철수");
+        Signed other = user("김철수"); // 이름이 "철수"로 끝나는 다른 사람
+        join(owner, projectId, leaving);
+        join(owner, projectId, other);
+        long ownersIssue = issue(owner, projectId, "오너 이슈");
+        issue(leaving.token(), projectId, "철수 이슈");
+        assign(owner, ownersIssue, userIdOf(leaving.token()));
+        long othersIssue = issue(owner, projectId, "다른 이슈");
+        assign(owner, othersIssue, userIdOf(other.token()));
+        comment(leaving.token(), ownersIssue);
+        comment(other.token(), ownersIssue);
+        long leavingId = userIdOf(leaving.token());
+        long otherId = userIdOf(other.token());
+
+        deletionOrder(deletionOrder(leaving.uid(), AuthStub.CLIENT_ID, "account_deletion")).andExpect(status().isNoContent());
+
+        String mine = "select content from chat_messages where lead_user_id = ? or assignee_user_id = ? order by id";
+        assertThat(texts(mine, leavingId, leavingId)).containsExactly(
+                "탈퇴한 사용자님이 참여했습니다.",
+                "탈퇴한 사용자님이 ISSUE-2를 등록했습니다.",
+                "오너님이 ISSUE-1 담당자를 탈퇴한 사용자님으로 지정했습니다.");
+        assertThat(texts(mine, otherId, otherId)).containsExactly(
+                "김철수님이 참여했습니다.",
+                "오너님이 ISSUE-3 담당자를 김철수님으로 지정했습니다.");
+        String sent = "select content from notifications where actor_id = ? and type = 'COMMENT_ADDED'";
+        assertThat(texts(sent, leavingId)).containsExactly("탈퇴한 사용자님이 ISSUE-1에 댓글을 남겼습니다.");
+        assertThat(texts(sent, otherId)).allMatch(t -> t.startsWith("김철수님이 ISSUE-1에 댓글"));
+        assertThat(texts("select content from chat_messages where content like '%철수%' and (lead_user_id = ? or assignee_user_id = ?)",
+                leavingId, leavingId)).isEmpty();
     }
 
     @Test

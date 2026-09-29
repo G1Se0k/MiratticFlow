@@ -135,7 +135,8 @@ public class IssueService {
                 findUser(userId),
                 request.dueDate()));
 
-        systemMessageSender.send(projectId, "%s님이 %s를 등록했습니다.".formatted(issue.getReporter().getName(), label(issue)));
+        systemMessageSender.send(projectId, "%s님이 %s를 등록했습니다.".formatted(issue.getReporter().getName(), label(issue)),
+                issue.getReporter().getId());
         if (issue.getAssignee() != null) {
             notifyAssigned(issue, userId);
         }
@@ -158,7 +159,7 @@ public class IssueService {
                 request.dueDate());
 
         // 제목·설명이 바뀐 것까지 채팅에 흘리면 대화가 묻힌다. 팀이 알아야 할 두 가지만 알린다.
-        String actor = findUser(userId).getName();
+        User actor = findUser(userId);
         if (before != issue.getStatus()) {
             announceStatus(issue, actor);
             notifyStatusChanged(issue, userId);
@@ -175,7 +176,7 @@ public class IssueService {
         Issue issue = requireReadable(issueId, userId);
         if (issue.getStatus() != status) {
             issue.changeStatus(status);
-            announceStatus(issue, findUser(userId).getName());
+            announceStatus(issue, findUser(userId));
             notifyStatusChanged(issue, userId);
         }
         return IssueResponse.of(issue, canDelete(issue, userId));
@@ -233,17 +234,19 @@ public class IssueService {
         return "ISSUE-" + issue.getNumber();
     }
 
-    private void announceStatus(Issue issue, String actor) {
+    private void announceStatus(Issue issue, User actor) {
         systemMessageSender.send(issue.getProject().getId(),
-                "%s님이 %s 상태를 %s로 변경했습니다.".formatted(actor, label(issue), issue.getStatus()));
+                "%s님이 %s 상태를 %s로 변경했습니다.".formatted(actor.getName(), label(issue), issue.getStatus()),
+                actor.getId());
     }
 
-    private void announceAssignee(Issue issue, String actor) {
+    private void announceAssignee(Issue issue, User actor) {
         String assignee = issue.getAssignee() != null
                 ? issue.getAssignee().getName() + "님으로 지정했습니다."
                 : "없음으로 바꿨습니다.";
         systemMessageSender.send(issue.getProject().getId(),
-                "%s님이 %s 담당자를 %s".formatted(actor, label(issue), assignee));
+                "%s님이 %s 담당자를 %s".formatted(actor.getName(), label(issue), assignee),
+                actor.getId(), issue.getAssignee() != null ? issue.getAssignee().getId() : null);
     }
 
     // ---------------------------------------------------------------- 알림

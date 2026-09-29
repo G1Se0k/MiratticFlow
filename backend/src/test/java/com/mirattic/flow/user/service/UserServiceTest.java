@@ -1,5 +1,6 @@
 package com.mirattic.flow.user.service;
 
+import com.mirattic.flow.chat.repository.ChatMessageRepository;
 import com.mirattic.flow.global.exception.BusinessException;
 import com.mirattic.flow.global.response.ErrorCode;
 import com.mirattic.flow.issue.repository.IssueRepository;
@@ -48,7 +49,7 @@ class UserServiceTest {
         issueRepository = mock(IssueRepository.class);
         withdrawalRepository = mock(WithdrawalRepository.class);
         userService = new UserService(userRepository, workspaceMemberRepository, projectMemberRepository,
-                notificationRepository, issueRepository, withdrawalRepository);
+                notificationRepository, mock(ChatMessageRepository.class), issueRepository, withdrawalRepository);
     }
 
     private User given(User user) {
