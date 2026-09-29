@@ -286,6 +286,9 @@ class UserApiTest extends ApiTestSupport {
         comment(other.token(), ownersIssue);
         long leavingId = userIdOf(leaving.token());
         long otherId = userIdOf(other.token());
+        // 탈퇴 전에 이름을 바꿔도 예전 이름이 들어간 문구까지 바뀐다 (이름이 아니라 자리로 바꾼다).
+        authed(patch("/api/users/me").contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("name", "영희🙂"))), leaving.token()).andExpect(status().isOk());
 
         deletionOrder(deletionOrder(leaving.uid(), AuthStub.CLIENT_ID, "account_deletion")).andExpect(status().isNoContent());
 
@@ -302,6 +305,42 @@ class UserApiTest extends ApiTestSupport {
         assertThat(texts(sent, otherId)).allMatch(t -> t.startsWith("김철수님이 ISSUE-1에 댓글"));
         assertThat(texts("select content from chat_messages where content like '%철수%' and (lead_user_id = ? or assignee_user_id = ?)",
                 leavingId, leavingId)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Flow 를 쓴 적 없는 계정의 삭제 명령도 경계를 남긴다 — 삭제 전에 받아 둔 로그인이 뒤늦게 와도 사용자를 만들지 못한다")
+    void aLoginIssuedBeforeTheDeletionCannotCreateTheUserAfterwards() throws Exception {
+        String uid = UUID.randomUUID().toString();
+        Instant issuedBefore = Instant.now().minusSeconds(5);
+        deletionOrder(deletionOrder(uid, AuthStub.CLIENT_ID, "account_deletion")).andExpect(status().isNoContent());
+
+        MockHttpServletResponse late = signIn(uid, "late@test.com", "늦은로그인", null, issuedBefore);
+        assertThat(late.getCookie(AuthCookies.ACCESS)).isNull();
+        assertThat(userRepository.findByMiratticUid(uid)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("같은 삭제 명령이 동시에 두 번 와도 둘 다 204 (계정별로 차례로 처리한다)")
+    void concurrentCopiesOfAnOrderBothSucceed() throws Exception {
+        for (int round = 0; round < 5; round++) {
+            Signed me = user("동시" + round);
+            String order = deletionOrder(me.uid(), AuthStub.CLIENT_ID, "account_deletion");
+            java.util.concurrent.CountDownLatch go = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+            List<java.util.concurrent.Future<Integer>> sent = new java.util.ArrayList<>();
+            for (int i = 0; i < 2; i++) {
+                sent.add(pool.submit(() -> {
+                    go.await();
+                    return deletionOrder(order).andReturn().getResponse().getStatus();
+                }));
+            }
+            go.countDown();
+            for (var f : sent) {
+                assertThat(f.get()).as("round " + round).isEqualTo(204);
+            }
+            pool.shutdown();
+            assertThat(userRepository.findByMiratticUid(me.uid())).isEmpty();
+        }
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.mirattic.flow.user.service;
 
+import com.mirattic.flow.chat.entity.ChatMessage;
 import com.mirattic.flow.chat.repository.ChatMessageRepository;
 import com.mirattic.flow.global.exception.BusinessException;
 import com.mirattic.flow.global.response.ErrorCode;
@@ -52,6 +53,9 @@ public class UserService {
      */
     @Transactional
     public Long signIn(String miratticUid, String email, String name, Instant authTime) {
+        // 같은 계정의 로그인과 탈퇴(Auth 의 삭제 명령 포함)는 차례로 — 삭제가 끝난 뒤에 끝나는 로그인이 사용자를 다시
+        // 만들지 못하게. 잠근 뒤 처음 읽으므로 방금 커밋된 탈퇴까지 본다.
+        Withdrawal fence = lockUid(miratticUid);
         return userRepository.findByMiratticUid(miratticUid)
                 .map(user -> {
                     user.updateEmail(email);
@@ -59,13 +63,35 @@ public class UserService {
                 })
                 .orElseGet(() -> {
                     // 탈퇴했던 계정이면 탈퇴보다 뒤의 로그인이어야 새 사용자를 만든다 (Withdrawal).
-                    withdrawalRepository.findById(hash(miratticUid)).ifPresent(w -> {
-                        if (authTime.getEpochSecond() <= w.getWithdrawnAt()) {
-                            throw new FreshLoginRequired();
-                        }
-                    });
+                    if (authTime.getEpochSecond() <= fence.getWithdrawnAt()) {
+                        throw new FreshLoginRequired();
+                    }
                     return userRepository.save(User.create(miratticUid, email, name, authTime.getEpochSecond())).getId();
                 });
+    }
+
+    /**
+     * Mirattic 계정 탈퇴 (Auth 의 삭제 명령). Flow 사용자가 없어도 탈퇴 경계를 지금으로 남긴다: 삭제 전에 받아 둔
+     * 로그인(더 이른 auth_time)이 뒤늦게 콜백에 닿아도 사용자를 만들지 못한다. 반환: 탈퇴시킨 Flow 사용자 id.
+     * 혼자 관리자인 워크스페이스가 있으면 BusinessException(OWNER_WORKSPACE_EXISTS) — 아무것도 바뀌지 않는다.
+     */
+    @Transactional
+    public Optional<Long> deleteByAuth(String miratticUid) {
+        Withdrawal fence = lockUid(miratticUid);
+        Optional<User> user = userRepository.findByMiratticUid(miratticUid);
+        if (user.isEmpty()) {
+            fence.withdrawnAgain(Instant.now().getEpochSecond());
+            return Optional.empty();
+        }
+        withdraw(user.get().getId());
+        return Optional.of(user.get().getId());
+    }
+
+    /** 이 계정의 탈퇴 기록 행을 잠근다 (없으면 경계 0 으로 만들어서). 계정별 잠금으로 쓴다. */
+    private Withdrawal lockUid(String miratticUid) {
+        String hash = hash(miratticUid);
+        withdrawalRepository.ensureRow(hash);
+        return withdrawalRepository.lock(hash);
     }
 
     /**
@@ -122,26 +148,22 @@ public class UserService {
 
         requireNoSoleOwnedWorkspace(userId, true);
 
-        // 다시 가입할 때의 기준 (탈퇴보다 뒤의 로그인만) — miratticUid 를 비우기 전에 남긴다.
-        long now = Instant.now().getEpochSecond();
-        String uidHash = hash(user.getMiratticUid());
-        withdrawalRepository.findById(uidHash).ifPresentOrElse(w -> w.withdrawnAgain(now),
-                () -> withdrawalRepository.save(new Withdrawal(uidHash, now)));
+        // 다시 가입할 때의 기준 (탈퇴보다 뒤의 로그인만) — miratticUid 를 비우기 전에 남긴다. 로그인과 같은 잠금.
+        lockUid(user.getMiratticUid()).withdrawnAgain(Instant.now().getEpochSecond());
 
         // 개인정보 파기가 먼저다.
         // 아래 벌크 쿼리들은 clearAutomatically = true 라 실행 후 영속성 컨텍스트를 비운다.
         // 그 뒤에 엔티티를 고치면 이미 준영속 상태여서 변경 감지가 일어나지 않고,
         // 멤버십만 지워진 채 개인정보가 그대로 남는다 (204 를 받고도 파기되지 않는다).
-        String formerName = user.getName();
         user.withdraw();
         userRepository.saveAndFlush(user);
 
-        // 다른 사람의 기록 문구(채팅 활동 줄, 댓글 알림)에 남은 예전 이름도 "탈퇴한 사용자"로 바꾼다.
-        // 그 사람 자리로 기록된 행에서 그 자리만 바꾼다 (ChatMessage.leadUserId · assigneeUserId, Notification.actorId).
+        // 다른 사람의 기록 문구(채팅 활동 줄, 댓글 알림)에 남은 이름도 "탈퇴한 사용자"로 바꾼다. 그 사람 자리로 기록된
+        // 행에서 그 자리(위치와 길이)만 바꾸므로, 그사이 이름을 바꿨어도 · 같은 이름의 다른 사람이 있어도 정확하다.
         String shown = user.getName();
-        chatMessageRepository.replaceLeadName(userId, formerName + "님", shown + "님");
-        chatMessageRepository.replaceAssigneeName(userId, formerName + "님으로 지정했습니다.", shown + "님으로 지정했습니다.");
-        notificationRepository.replaceLeadName(userId, formerName + "님", shown + "님");
+        chatMessageRepository.replaceLeadName(userId, shown);
+        chatMessageRepository.replaceAssigneeName(userId, shown, ChatMessage.ASSIGNED_TAIL);
+        notificationRepository.replaceLeadName(userId, shown);
 
         issueRepository.unassignByUserId(userId);
         notificationRepository.deleteByUserId(userId);

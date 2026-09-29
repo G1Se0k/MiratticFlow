@@ -46,7 +46,7 @@ public class CommentService {
                 request.content()));
 
         // 이슈 작성자와 담당자에게 알린다. 본인이 쓴 댓글은 본인에게 가지 않는다.
-        notificationSender.send(userId, NotificationType.COMMENT_ADDED,
+        notificationSender.sendFrom(comment.getAuthor(), NotificationType.COMMENT_ADDED,
                 "%s님이 ISSUE-%d에 댓글을 남겼습니다.".formatted(comment.getAuthor().getName(), issue.getNumber()),
                 "/issues/" + issue.getId(), issue.getReporter(), issue.getAssignee());
 

@@ -5,6 +5,7 @@ import com.mirattic.flow.chat.entity.ChatMessage;
 import com.mirattic.flow.chat.entity.Topic;
 import com.mirattic.flow.chat.repository.ChatMessageRepository;
 import com.mirattic.flow.chat.repository.TopicRepository;
+import com.mirattic.flow.user.entity.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
@@ -34,23 +35,18 @@ public class SystemMessageSender {
      * 지금은 시스템 메시지를 보낸 뒤에 실패할 코드가 없어서 문제가 되지 않는다.
      * 생기면 @TransactionalEventListener(AFTER_COMMIT) 으로 옮긴다.
      */
-    @Transactional
-    public void send(Long projectId, String content, Long leadUserId) {
-        send(projectId, content, leadUserId, null);
-    }
-
     /**
-     * leadUserId: 문구 맨 앞 "{이름}님이"의 그 사람. assigneeUserId: 끝 "{이름}님으로 지정했습니다."의 그 사람.
-     * 탈퇴하면 그 자리의 이름이 "탈퇴한 사용자"로 바뀐다 (ChatMessage).
+     * content 는 lead 의 지금 이름으로 시작해야 한다 ("{이름}님이 …"). assignee 가 있으면 content 는
+     * "… {assignee 이름}" + ChatMessage.ASSIGNED_TAIL 로 끝나야 한다. 탈퇴하면 그 자리가 "탈퇴한 사용자"로 바뀐다.
      */
     @Transactional
-    public void send(Long projectId, String content, Long leadUserId, Long assigneeUserId) {
+    public void send(Long projectId, String content, User lead, User assignee) {
         topicRepository.findProjectChat(projectId)
-                .ifPresent(topic -> broadcast(topic, content, leadUserId, assigneeUserId));
+                .ifPresent(topic -> broadcast(topic, content, lead, assignee));
     }
 
-    private void broadcast(Topic topic, String content, Long leadUserId, Long assigneeUserId) {
-        ChatMessage saved = messageRepository.save(ChatMessage.system(topic, content, leadUserId, assigneeUserId));
+    private void broadcast(Topic topic, String content, User lead, User assignee) {
+        ChatMessage saved = messageRepository.save(ChatMessage.system(topic, content, lead, assignee));
         messagingTemplate.convertAndSend(
                 "/topic/thread/" + topic.getId(), ChatMessageResponse.from(saved));
     }

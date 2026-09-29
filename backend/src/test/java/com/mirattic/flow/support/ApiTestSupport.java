@@ -94,6 +94,12 @@ public abstract class ApiTestSupport {
     }
 
     protected MockHttpServletResponse signIn(String uid, String email, String name, String next) throws Exception {
+        return signIn(uid, email, name, next, Instant.now());
+    }
+
+    /** authTime: 그 Auth 로그인의 시각 (ID token auth_time) — 예: 삭제 전에 받아 둔 로그인이 뒤늦게 닿는 경우. */
+    protected MockHttpServletResponse signIn(String uid, String email, String name, String next, Instant authTime)
+            throws Exception {
         String verifier = UUID.randomUUID() + "-verifier-verifier";
         MockHttpServletRequestBuilder startRequest = get("/auth/start");
         if (next != null) {
@@ -104,7 +110,7 @@ public abstract class ApiTestSupport {
         var query = UriComponentsBuilder.fromUriString(authorize).build().getQueryParams();
         // PKCE: 테스트가 Auth 역할을 하므로 Flow 가 만든 challenge 에 code 를 묶는다.
         String code = AuthStub.code(uid, email, name, decode(query.getFirst("code_challenge")),
-                decode(query.getFirst("redirect_uri")));
+                decode(query.getFirst("redirect_uri")), authTime);
         return mockMvc.perform(get("/auth/callback").param("code", code).param("state", decode(query.getFirst("state")))
                 .cookie(start.getCookie("flow_login"))).andReturn().getResponse();
     }

@@ -4,8 +4,6 @@ import com.mirattic.flow.auth.service.MiratticAuth;
 import com.mirattic.flow.global.config.SocketExpiry;
 import com.mirattic.flow.global.exception.BusinessException;
 import com.mirattic.flow.global.response.ErrorCode;
-import com.mirattic.flow.user.entity.User;
-import com.mirattic.flow.user.repository.UserRepository;
 import com.mirattic.flow.user.service.UserService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -35,16 +33,14 @@ public class AccountDeletionController {
     public static final String PATH = "/api/internal/account-deletion";
 
     private final JwtDecoder orders;
-    private final UserRepository userRepository;
     private final UserService userService;
     private final SocketExpiry socketExpiry;
 
-    public AccountDeletionController(MiratticAuth auth, UserRepository userRepository, UserService userService,
+    public AccountDeletionController(MiratticAuth auth, UserService userService,
                                      SocketExpiry socketExpiry) {
         this.orders = auth.decoder(jwt -> "account_deletion".equals(jwt.getClaimAsString("purpose"))
                 ? OAuth2TokenValidatorResult.success()
                 : OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token", "not a deletion order", null)));
-        this.userRepository = userRepository;
         this.userService = userService;
         this.socketExpiry = socketExpiry;
     }
@@ -61,20 +57,16 @@ public class AccountDeletionController {
         } catch (JwtException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        Optional<User> user = userRepository.findByMiratticUid(order.getSubject());
-        if (user.isEmpty()) {
-            return ResponseEntity.noContent().build(); // Flow 를 쓴 적 없거나 이미 지웠다
-        }
-        Long userId = user.get().getId();
+        Optional<Long> withdrawn;
         try {
-            userService.withdraw(userId);
+            withdrawn = userService.deleteByAuth(order.getSubject());
         } catch (BusinessException e) {
             if (e.getErrorCode() != ErrorCode.OWNER_WORKSPACE_EXISTS) {
                 throw e;
             }
             return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", e.getErrorCode().getMessage()));
         }
-        socketExpiry.closeUser(userId);
+        withdrawn.ifPresent(socketExpiry::closeUser);
         return ResponseEntity.noContent().build();
     }
 }

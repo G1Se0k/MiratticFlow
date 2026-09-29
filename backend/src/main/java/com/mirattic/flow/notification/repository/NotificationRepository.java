@@ -11,16 +11,14 @@ import java.util.List;
 
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
 
-    /**
-     * 탈퇴: 문구 맨 앞 "{prefix}"(= 이름 + "님")가 그 사람 것인 행만 replacement 로 바꾼다. LIKE 가 아니라 앞부분을
-     * 그대로 비교하므로 이름에 % · _ 가 있어도, 같은 이름의 다른 사람 기록이어도 건드리지 않는다.
-     */
+    /** 탈퇴: 그 사람 이름으로 시작하는 알림에서 앞의 actor_name_length 글자를 바꾼다 (ChatMessageRepository 와 같다). */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(value = """
-            update notifications set content = concat(:replacement, substring(content, char_length(:prefix) + 1))
-            where actor_id = :userId and left(content, char_length(:prefix)) = :prefix""", nativeQuery = true)
-    int replaceLeadName(@Param("userId") Long userId, @Param("prefix") String prefix,
-                        @Param("replacement") String replacement);
+            update notifications
+            set content = concat(:replacement, substring(content, actor_name_length + 1)),
+                actor_name_length = char_length(:replacement)
+            where actor_id = :userId and actor_name_length is not null""", nativeQuery = true)
+    int replaceLeadName(@Param("userId") Long userId, @Param("replacement") String replacement);
 
     @Query("select n from Notification n where n.user.id = :userId order by n.id desc")
     List<Notification> findRecent(@Param("userId") Long userId, Limit limit);

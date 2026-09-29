@@ -171,7 +171,7 @@ public class ProjectService {
         }
         ProjectMember member = memberRepository.save(
                 ProjectMember.join(project, workspaceService.findUser(targetUserId)));
-        systemMessageSender.send(projectId, member.getUser().getName() + "님이 참여했습니다.", member.getUser().getId());
+        systemMessageSender.send(projectId, member.getUser().getName() + "님이 참여했습니다.", member.getUser(), null);
         notificationSender.send(actorId, NotificationType.PROJECT_JOINED,
                 "%s 프로젝트에 참여하게 되었습니다.".formatted(project.getName()),
                 "/projects/" + projectId, member.getUser());

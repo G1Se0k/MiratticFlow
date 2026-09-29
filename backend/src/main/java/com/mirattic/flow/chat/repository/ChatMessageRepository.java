@@ -14,24 +14,27 @@ import java.util.List;
 public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> {
 
     /**
-     * 탈퇴: 문구 맨 앞 "{prefix}"(= 이름 + "님")가 그 사람 것인 행만 replacement 로 바꾼다. LIKE 가 아니라 앞부분을
-     * 그대로 비교하므로 이름에 % · _ 가 있어도, 같은 이름의 다른 사람 기록이어도 건드리지 않는다.
+     * 탈퇴: 그 사람이 맨 앞에 오는 문구에서 앞의 lead_name_length 글자를 replacement 로 바꾼다. 길이도 바꿔 두어
+     * 다시 불러도 같은 결과다. 이름을 비교하지 않으므로 그사이 이름을 바꿨어도 정확하다.
      */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(value = """
-            update chat_messages set content = concat(:replacement, substring(content, char_length(:prefix) + 1))
-            where lead_user_id = :userId and left(content, char_length(:prefix)) = :prefix""", nativeQuery = true)
-    int replaceLeadName(@Param("userId") Long userId, @Param("prefix") String prefix,
-                        @Param("replacement") String replacement);
+            update chat_messages
+            set content = concat(:replacement, substring(content, lead_name_length + 1)),
+                lead_name_length = char_length(:replacement)
+            where lead_user_id = :userId and lead_name_length is not null""", nativeQuery = true)
+    int replaceLeadName(@Param("userId") Long userId, @Param("replacement") String replacement);
 
-    /** 탈퇴: 문구 끝 "{suffix}"(= 이름 + "님으로 지정했습니다.")가 그 사람 것인 행만 바꾼다. */
+    /** 탈퇴: 담당자 지정 문구 끝 "{이름}" + tail 의 이름 자리를 바꾼다. */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(value = """
             update chat_messages
-            set content = concat(left(content, char_length(content) - char_length(:suffix)), :replacement)
-            where assignee_user_id = :userId and right(content, char_length(:suffix)) = :suffix""", nativeQuery = true)
-    int replaceAssigneeName(@Param("userId") Long userId, @Param("suffix") String suffix,
-                            @Param("replacement") String replacement);
+            set content = concat(left(content, char_length(content) - assignee_name_length - char_length(:tail)),
+                                 :replacement, :tail),
+                assignee_name_length = char_length(:replacement)
+            where assignee_user_id = :userId and assignee_name_length is not null""", nativeQuery = true)
+    int replaceAssigneeName(@Param("userId") Long userId, @Param("replacement") String replacement,
+                            @Param("tail") String tail);
 
     /**
      * 최신 메시지부터 거꾸로 읽는다. before 가 null 이면 가장 최근부터.

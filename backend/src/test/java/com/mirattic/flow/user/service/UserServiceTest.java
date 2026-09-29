@@ -38,6 +38,7 @@ class UserServiceTest {
     private NotificationRepository notificationRepository;
     private IssueRepository issueRepository;
     private WithdrawalRepository withdrawalRepository;
+    private Withdrawal fence;
     private UserService userService;
 
     @BeforeEach
@@ -48,6 +49,9 @@ class UserServiceTest {
         notificationRepository = mock(NotificationRepository.class);
         issueRepository = mock(IssueRepository.class);
         withdrawalRepository = mock(WithdrawalRepository.class);
+        // 계정별 잠금 행 (없으면 경계 0 으로 만들어진다). 탈퇴 시각은 이 행에 기록된다.
+        fence = new Withdrawal("h", 0L);
+        when(withdrawalRepository.lock(any())).thenReturn(fence);
         userService = new UserService(userRepository, workspaceMemberRepository, projectMemberRepository,
                 notificationRepository, mock(ChatMessageRepository.class), issueRepository, withdrawalRepository);
     }
@@ -97,7 +101,7 @@ class UserServiceTest {
     @DisplayName("탈퇴했던 계정은 탈퇴보다 뒤의 로그인이어야 다시 사용자를 만든다 (예전 SSO 세션으로는 안 된다)")
     void rejoinNeedsALoginAfterTheWithdrawal() {
         when(userRepository.findByMiratticUid(UID)).thenReturn(Optional.empty());
-        when(withdrawalRepository.findById(any())).thenReturn(Optional.of(new Withdrawal("h", 2_000L)));
+        fence.withdrawnAgain(2_000L);
         when(userRepository.save(any(User.class))).thenAnswer(call -> call.getArgument(0));
 
         assertThatThrownBy(() -> userService.signIn(UID, null, "예전 세션", java.time.Instant.ofEpochSecond(2_000)))
@@ -120,7 +124,8 @@ class UserServiceTest {
         assertThat(user.getEmail()).isNull();
         assertThat(user.getName()).isEqualTo("탈퇴한 사용자");
         // 다시 가입할 때의 기준으로 탈퇴 시각을 남긴다 (UID 는 해시로만).
-        verify(withdrawalRepository).save(argThat(w -> w.getMiratticUidHash().length() == 64 && w.getWithdrawnAt() > 0));
+        verify(withdrawalRepository).lock(argThat(hash -> hash.length() == 64));
+        assertThat(fence.getWithdrawnAt()).isPositive();
     }
 
     @Test

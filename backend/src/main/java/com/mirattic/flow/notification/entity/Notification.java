@@ -40,9 +40,13 @@ public class Notification extends BaseTimeEntity {
     @Column(nullable = false, length = 200)
     private String link;
 
-    /** 알림을 일으킨 사람. 문구 맨 앞이 "{이름}님이"면 그 사람이 탈퇴할 때 그 이름을 "탈퇴한 사용자"로 바꾼다. */
+    /** 알림을 일으킨 사람. */
     @Column(name = "actor_id")
     private Long actorId;
+
+    /** 문구가 그 사람 이름으로 시작하면 그 글자 수 (ChatMessage.chars). 탈퇴하면 그 자리가 "탈퇴한 사용자"로 바뀐다. */
+    @Column(name = "actor_name_length")
+    private Integer actorNameLength;
 
     // read 는 MySQL 예약어라 컬럼 이름을 따로 준다.
     @Column(name = "is_read", nullable = false)
@@ -55,9 +59,11 @@ public class Notification extends BaseTimeEntity {
         this.link = link;
     }
 
-    public static Notification of(User user, NotificationType type, String content, String link, Long actorId) {
+    public static Notification of(User user, NotificationType type, String content, String link, Long actorId,
+                                  Integer actorNameLength) {
         Notification notification = new Notification(user, type, content, link);
         notification.actorId = actorId;
+        notification.actorNameLength = actorNameLength;
         return notification;
     }
 

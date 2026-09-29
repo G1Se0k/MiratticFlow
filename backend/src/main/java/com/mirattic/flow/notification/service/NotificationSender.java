@@ -1,5 +1,6 @@
 package com.mirattic.flow.notification.service;
 
+import com.mirattic.flow.chat.entity.ChatMessage;
 import com.mirattic.flow.notification.entity.Notification;
 import com.mirattic.flow.notification.entity.NotificationType;
 import com.mirattic.flow.notification.repository.NotificationRepository;
@@ -32,6 +33,17 @@ public class NotificationSender {
      */
     @Transactional
     public void send(Long actorId, NotificationType type, String content, String link, User... recipients) {
+        send(actorId, null, type, content, link, recipients);
+    }
+
+    /** content 가 actor 의 지금 이름으로 시작할 때 ("{이름}님이 …"): 탈퇴하면 그 자리가 "탈퇴한 사용자"로 바뀐다. */
+    @Transactional
+    public void sendFrom(User actor, NotificationType type, String content, String link, User... recipients) {
+        send(actor.getId(), ChatMessage.chars(actor.getName()), type, content, link, recipients);
+    }
+
+    private void send(Long actorId, Integer actorNameLength, NotificationType type, String content, String link,
+                      User... recipients) {
         Map<Long, User> targets = new LinkedHashMap<>();
         Arrays.stream(recipients)
                 .filter(Objects::nonNull)
@@ -39,7 +51,7 @@ public class NotificationSender {
                 .forEach(user -> targets.putIfAbsent(user.getId(), user));
 
         notificationRepository.saveAll(targets.values().stream()
-                .map(user -> Notification.of(user, type, content, link, actorId))
+                .map(user -> Notification.of(user, type, content, link, actorId, actorNameLength))
                 .toList());
     }
 }

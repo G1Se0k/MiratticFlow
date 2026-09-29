@@ -1,5 +1,6 @@
 package com.mirattic.flow.issue.service;
 
+import com.mirattic.flow.chat.entity.ChatMessage;
 import com.mirattic.flow.chat.repository.ChatMessageRepository;
 import com.mirattic.flow.chat.repository.TopicRepository;
 import com.mirattic.flow.chat.service.SystemMessageSender;
@@ -136,7 +137,7 @@ public class IssueService {
                 request.dueDate()));
 
         systemMessageSender.send(projectId, "%s님이 %s를 등록했습니다.".formatted(issue.getReporter().getName(), label(issue)),
-                issue.getReporter().getId());
+                issue.getReporter(), null);
         if (issue.getAssignee() != null) {
             notifyAssigned(issue, userId);
         }
@@ -237,16 +238,16 @@ public class IssueService {
     private void announceStatus(Issue issue, User actor) {
         systemMessageSender.send(issue.getProject().getId(),
                 "%s님이 %s 상태를 %s로 변경했습니다.".formatted(actor.getName(), label(issue), issue.getStatus()),
-                actor.getId());
+                actor, null);
     }
 
     private void announceAssignee(Issue issue, User actor) {
         String assignee = issue.getAssignee() != null
-                ? issue.getAssignee().getName() + "님으로 지정했습니다."
+                ? issue.getAssignee().getName() + ChatMessage.ASSIGNED_TAIL
                 : "없음으로 바꿨습니다.";
         systemMessageSender.send(issue.getProject().getId(),
                 "%s님이 %s 담당자를 %s".formatted(actor.getName(), label(issue), assignee),
-                actor.getId(), issue.getAssignee() != null ? issue.getAssignee().getId() : null);
+                actor, issue.getAssignee());
     }
 
     // ---------------------------------------------------------------- 알림
