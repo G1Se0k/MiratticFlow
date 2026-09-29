@@ -176,7 +176,7 @@ public class WorkspaceService {
 
     /** 관리자가 한 명뿐이면 그 자리를 비울 수 없다. 주인 없는 워크스페이스는 아무도 손댈 수 없다. */
     private void requireAnotherOwnerExists(Long workspaceId) {
-        if (memberRepository.countByWorkspaceIdAndRole(workspaceId, WorkspaceRole.OWNER) <= 1) {
+        if (memberRepository.lockAllByWorkspaceIdAndRole(workspaceId, WorkspaceRole.OWNER).size() <= 1) {
             throw new BusinessException(ErrorCode.LAST_OWNER);
         }
     }

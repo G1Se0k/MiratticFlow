@@ -106,7 +106,7 @@ public class UserService {
     /** 탈퇴를 막는 조건(혼자 관리자인 워크스페이스)이 없는가. 탈퇴 확인 로그인을 시작하기 전에 먼저 본다. */
     public boolean canWithdraw(Long userId) {
         try {
-            requireNoSoleOwnedWorkspace(userId);
+            requireNoSoleOwnedWorkspace(userId, false);
             return true;
         } catch (BusinessException e) {
             return false;
@@ -118,7 +118,7 @@ public class UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        requireNoSoleOwnedWorkspace(userId);
+        requireNoSoleOwnedWorkspace(userId, true);
 
         // 다시 가입할 때의 기준 (탈퇴보다 뒤의 로그인만) — miratticUid 를 비우기 전에 남긴다.
         long now = Instant.now().getEpochSecond();
@@ -152,11 +152,14 @@ public class UserService {
      * 관리자가 나 하나뿐인 워크스페이스를 남기고 떠날 수는 없다.
      * 워크스페이스를 나갈 때(leave)와 같은 규칙이다 — 주인이 없으면 아무도 그 워크스페이스를 손댈 수 없다.
      */
-    private void requireNoSoleOwnedWorkspace(Long userId) {
-        List<WorkspaceMember> owned = workspaceMemberRepository.findAllByUserIdAndRole(userId, WorkspaceRole.OWNER);
-        for (WorkspaceMember member : owned) {
-            long owners = workspaceMemberRepository.countByWorkspaceIdAndRole(
-                    member.getWorkspace().getId(), WorkspaceRole.OWNER);
+    private void requireNoSoleOwnedWorkspace(Long userId, boolean lock) {
+        List<Long> owned = workspaceMemberRepository.findAllByUserIdAndRole(userId, WorkspaceRole.OWNER).stream()
+                .map(m -> m.getWorkspace().getId()).sorted().toList(); // 같은 순서로 잠가 교착을 피한다
+        for (Long workspaceId : owned) {
+            // 탈퇴는 잠그고 센다 (WorkspaceMemberRepository.lockAllByWorkspaceIdAndRole). 미리 보기(canWithdraw)는 그냥 센다.
+            long owners = lock
+                    ? workspaceMemberRepository.lockAllByWorkspaceIdAndRole(workspaceId, WorkspaceRole.OWNER).size()
+                    : workspaceMemberRepository.countByWorkspaceIdAndRole(workspaceId, WorkspaceRole.OWNER);
             if (owners <= 1) {
                 throw new BusinessException(ErrorCode.OWNER_WORKSPACE_EXISTS);
             }

@@ -144,7 +144,7 @@ class UserServiceTest {
         WorkspaceMember owner = WorkspaceMember.join(workspace, user, WorkspaceRole.OWNER);
         when(workspaceMemberRepository.findAllByUserIdAndRole(USER_ID, WorkspaceRole.OWNER))
                 .thenReturn(List.of(owner));
-        when(workspaceMemberRepository.countByWorkspaceIdAndRole(10L, WorkspaceRole.OWNER)).thenReturn(1L);
+        when(workspaceMemberRepository.lockAllByWorkspaceIdAndRole(10L, WorkspaceRole.OWNER)).thenReturn(List.of(owner));
 
         assertThatThrownBy(() -> userService.withdraw(USER_ID))
                 .isInstanceOf(BusinessException.class)
@@ -161,7 +161,9 @@ class UserServiceTest {
         ReflectionTestUtils.setField(workspace, "id", 10L);
         when(workspaceMemberRepository.findAllByUserIdAndRole(USER_ID, WorkspaceRole.OWNER))
                 .thenReturn(List.of(WorkspaceMember.join(workspace, user, WorkspaceRole.OWNER)));
-        when(workspaceMemberRepository.countByWorkspaceIdAndRole(10L, WorkspaceRole.OWNER)).thenReturn(2L);
+        List<WorkspaceMember> owners = List.of(WorkspaceMember.join(workspace, user, WorkspaceRole.OWNER),
+                WorkspaceMember.join(workspace, User.create("other-uid", "o@test.com", "다른관리자", 0L), WorkspaceRole.OWNER));
+        when(workspaceMemberRepository.lockAllByWorkspaceIdAndRole(10L, WorkspaceRole.OWNER)).thenReturn(owners);
 
         userService.withdraw(USER_ID);
 

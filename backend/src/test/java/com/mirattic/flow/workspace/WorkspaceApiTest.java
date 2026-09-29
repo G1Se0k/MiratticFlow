@@ -12,6 +12,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -264,6 +266,38 @@ class WorkspaceApiTest extends ApiTestSupport {
         authed(delete("/api/workspaces/{id}/members/me", workspaceId), ownerToken)
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("LAST_OWNER"));
+    }
+
+    @Test
+    @DisplayName("마지막 관리자 둘이 동시에 나가도 한 명은 남는다 (관리자 자리는 잠그고 센다)")
+    void twoLastOwnersLeavingAtOnceLeaveOneOwner() throws Exception {
+        for (int round = 0; round < 8; round++) {
+            String a = newUserToken();
+            long workspaceId = createWorkspace(a, "동시" + round);
+            String b = newUserToken();
+            authed(post("/api/invites/{code}/accept", joinCode(a, workspaceId)), b);
+            authed(patch("/api/workspaces/{id}/members/{userId}", workspaceId, userIdOf(b))
+                    .contentType(MediaType.APPLICATION_JSON).content(json(new RoleRequest(WorkspaceRole.OWNER))), a)
+                    .andExpect(status().isOk());
+
+            java.util.concurrent.CountDownLatch go = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+            List<java.util.concurrent.Future<Integer>> leaves = new java.util.ArrayList<>();
+            for (String token : List.of(a, b)) {
+                leaves.add(pool.submit(() -> {
+                    go.await();
+                    return authed(delete("/api/workspaces/{id}/members/me", workspaceId), token)
+                            .andReturn().getResponse().getStatus();
+                }));
+            }
+            go.countDown();
+            List<Integer> statuses = new java.util.ArrayList<>();
+            for (var f : leaves) {
+                statuses.add(f.get());
+            }
+            pool.shutdown();
+            assertThat(statuses).as("round " + round).containsExactlyInAnyOrder(204, 400);
+        }
     }
 
     @Test
