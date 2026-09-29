@@ -9,6 +9,7 @@ import com.mirattic.flow.workspace.dto.JoinResponse;
 import com.mirattic.flow.workspace.entity.*;
 import com.mirattic.flow.workspace.repository.WorkspaceInviteRepository;
 import com.mirattic.flow.workspace.repository.WorkspaceMemberRepository;
+import com.mirattic.flow.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +27,7 @@ public class WorkspaceInviteService {
     private final WorkspaceMemberRepository memberRepository;
     private final WorkspaceService workspaceService;
     private final InviteCodeGenerator codeGenerator;
+    private final UserRepository userRepository;
 
     // ---------------------------------------------------------------- 초대 링크 (일회용)
 
@@ -113,6 +115,8 @@ public class WorkspaceInviteService {
 
     @Transactional
     public JoinResponse accept(String code, Long userId) {
+        // 멤버십을 만든다: 탈퇴와 차례로 (탈퇴가 먼저 끝났으면 거절 — 탈퇴한 사람의 멤버십이 새로 생기지 않게).
+        userRepository.lockNamed(userId);
         WorkspaceInvite invite = findInvite(code);
         Workspace workspace = invite.getWorkspace();
 

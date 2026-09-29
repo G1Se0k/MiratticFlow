@@ -77,6 +77,7 @@ public class WorkspaceService {
 
     @Transactional
     public WorkspaceResponse create(Long userId, WorkspaceRequest request) {
+        userRepository.lockNamed(userId); // 멤버십을 만든다: 탈퇴와 차례로 (WorkspaceInviteService.accept 와 같다)
         User user = findUser(userId);
         Workspace workspace = workspaceRepository.save(Workspace.create(request.name(), request.description()));
 

@@ -9,7 +9,11 @@ import lombok.NoArgsConstructor;
 
 @Getter
 @Entity
-@Table(name = "chat_messages", indexes = @Index(name = "idx_message_topic", columnList = "topic_id, id"))
+@Table(name = "chat_messages", indexes = {
+        @Index(name = "idx_message_topic", columnList = "topic_id, id"),
+        // 탈퇴 때 이름 자리를 바꾸는 쿼리(ChatMessageRepository)가 표 전체를 훑지 않게
+        @Index(name = "idx_message_lead_user", columnList = "lead_user_id"),
+        @Index(name = "idx_message_assignee_user", columnList = "assignee_user_id")})
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ChatMessage extends BaseTimeEntity {
 
