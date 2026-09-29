@@ -70,7 +70,10 @@ public class WorkspaceController {
     @PatchMapping("/{workspaceId}/members/{userId}")
     public MemberResponse changeRole(@AuthenticationPrincipal AuthUser authUser, @PathVariable Long workspaceId,
                                      @PathVariable Long userId, @Valid @RequestBody RoleRequest request) {
-        return workspaceService.changeRole(workspaceId, authUser.id(), userId, request.role());
+        MemberResponse member = workspaceService.changeRole(workspaceId, authUser.id(), userId, request.role());
+        // 관리자에서 내려오면 참여하지 않은 프로젝트의 채팅 권한이 사라진다: 열린 구독을 끝내 다시 검사하게 한다.
+        socketExpiry.closeUser(userId);
+        return member;
     }
 
     @DeleteMapping("/{workspaceId}/members/{userId}")
