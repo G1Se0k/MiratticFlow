@@ -8,35 +8,43 @@ import { Icon } from '@/components/ui/Icon';
 import { Logo } from '@/components/ui/Logo';
 import { Spinner } from '@/components/ui/Spinner';
 import { useMe } from '@/hooks/useAuth';
-import { useHasToken } from '@/hooks/useHasToken';
+import { ApiError } from '@/lib/api/types';
 
 /**
  * 인증 가드 + 앱 셸.
- * 토큰이 localStorage 에 있어 서버(미들웨어)에서는 읽을 수 없으므로 클라이언트에서 가린다.
+ * 로그인 여부는 내 정보 조회의 성공 여부로 판단한다 (토큰은 HttpOnly 쿠키라 스크립트가 못 본다).
  * 실제 데이터 보호는 백엔드가 매 요청 토큰을 검증해서 한다.
  */
 export default function ProtectedLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { data: user, isPending, isError } = useMe();
-  const hasToken = useHasToken();
+  const { data: user, isPending, error, refetch } = useMe();
   const [menuOpen, setMenuOpen] = useState(false);
+  // 401 만 "로그인 안 됨"이다. 서버 · Auth 장애(502 등)로 로그인 화면에 보내면 멀쩡한 로그인을 버리게 된다.
+  const signedOut = error instanceof ApiError && error.status === 401;
 
   useEffect(() => {
-    if (hasToken === null) return; // 아직 확인 전
     // 로그인 후 원래 가려던 곳으로 돌아오게 한다.
     // 초대 링크를 로그아웃 상태로 열었을 때 특히 필요하다.
-    if (!hasToken || isError) {
+    if (signedOut) {
       router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
     }
-  }, [hasToken, isError, pathname, router]);
+  }, [signedOut, pathname, router]);
 
   // 화면을 이동하면 열려 있던 모바일 메뉴는 닫는다.
   useEffect(() => setMenuOpen(false), [pathname]);
 
-  // 서버와 클라이언트 첫 렌더를 null 로 맞춘다 (hydration 불일치 방지)
-  if (hasToken === null) return null;
-  if (!hasToken || isError) return null;
+  if (signedOut) return null;
+  if (error) {
+    return (
+      <main className="flex min-h-dvh flex-col items-center justify-center gap-3 px-4 text-center">
+        <p className="text-[14px] text-ink-soft">{error.message}</p>
+        <button onClick={() => refetch()} className="text-[13px] font-medium text-accent hover:underline">
+          다시 시도
+        </button>
+      </main>
+    );
+  }
   if (isPending || !user) return <Spinner />;
 
   return (

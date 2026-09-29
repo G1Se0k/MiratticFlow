@@ -1,10 +1,11 @@
 package com.mirattic.flow.chat;
 
-import com.mirattic.flow.auth.dto.LoginRequest;
-import com.mirattic.flow.auth.dto.SignupRequest;
 import com.mirattic.flow.chat.dto.ChatMessageResponse;
 import com.mirattic.flow.chat.dto.SendMessageRequest;
 import com.mirattic.flow.project.dto.ProjectRequest;
+import com.mirattic.flow.global.config.SocketExpiry;
+import com.mirattic.flow.support.AuthStub;
+import com.mirattic.flow.user.service.UserService;
 import com.mirattic.flow.workspace.dto.WorkspaceRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,6 +25,8 @@ import org.springframework.messaging.simp.stomp.StompHeaders;
 import org.springframework.messaging.simp.stomp.StompSession;
 import org.springframework.messaging.simp.stomp.StompSessionHandlerAdapter;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 import org.springframework.web.socket.messaging.WebSocketStompClient;
@@ -47,8 +50,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @ActiveProfiles("test")
 class ChatStompTest {
 
+    @DynamicPropertySource
+    static void auth(DynamicPropertyRegistry registry) {
+        registry.add("app.auth.issuer", AuthStub::issuer);
+    }
+
     @LocalServerPort int port;
     @Autowired ObjectMapper objectMapper;
+    @Autowired UserService userService;
+    @Autowired SocketExpiry socketExpiry;
 
     private RestTemplate rest;
     private String baseUrl;
@@ -84,11 +94,11 @@ class ChatStompTest {
         return rest.exchange(baseUrl + path, HttpMethod.GET, new HttpEntity<>(headers), String.class).getBody();
     }
 
+    /** Mirattic 계정으로 로그인한 사용자 (로그인 흐름 자체는 AuthApiTest 가 검증한다). */
     private String newUserToken() {
-        String email = "s" + UUID.randomUUID().toString().substring(0, 8) + "@test.com";
-        post("/api/auth/signup", new SignupRequest(email, "password123", "테스터"), null);
-        String body = post("/api/auth/login", new LoginRequest(email, "password123"), null);
-        return objectMapper.readTree(body).get("accessToken").asString();
+        String uid = UUID.randomUUID().toString();
+        userService.signIn(uid, "s" + uid.substring(0, 8) + "@test.com", "테스터", java.time.Instant.now());
+        return AuthStub.accessToken(uid);
     }
 
     private long id(String body) {
@@ -139,6 +149,65 @@ class ChatStompTest {
     void connectWithoutToken() {
         assertThatThrownBy(() -> connect(null))
                 .isInstanceOf(ExecutionException.class);
+    }
+
+    @Test
+    @DisplayName("브라우저처럼 핸드셰이크의 flow_at 쿠키로도 연결된다 (CONNECT 헤더 없이)")
+    void connectWithCookie() throws Exception {
+        String token = newUserToken();
+        org.springframework.web.socket.WebSocketHttpHeaders handshake = new org.springframework.web.socket.WebSocketHttpHeaders();
+        handshake.add(HttpHeaders.COOKIE, "flow_at=" + token);
+        StompSession session = stompClient.connectAsync("ws://localhost:" + port + "/ws", handshake, new StompHeaders(),
+                        new StompSessionHandlerAdapter() { })
+                .get(5, TimeUnit.SECONDS);
+        assertThat(session.isConnected()).isTrue();
+        session.disconnect();
+    }
+
+    @Test
+    @DisplayName("연결은 인증에 쓴 토큰의 만료 시각에 서버가 끊는다 (구독만 해 둔 연결도)")
+    void connectionClosesWhenTheTokenExpires() throws Exception {
+        String uid = UUID.randomUUID().toString();
+        userService.signIn(uid, null, "곧만료", java.time.Instant.now());
+        StompSession session = connect(AuthStub.accessToken(uid, 2));
+        assertThat(session.isConnected()).isTrue();
+        long start = System.currentTimeMillis();
+        for (int i = 0; i < 50 && session.isConnected(); i++) {
+            Thread.sleep(100);
+        }
+        assertThat(session.isConnected()).isFalse();
+        // 주기적으로 훑지 않고 exp 에 맞춰 닫는다 (JWT exp 는 초 단위라 최대 1초 이르거나 늦다).
+        assertThat(System.currentTimeMillis() - start).isLessThan(3500);
+    }
+
+    @Test
+    @DisplayName("탈퇴하면 이미 열려 있는 연결도 바로 끊긴다 (탈퇴 흐름은 UserApiTest)")
+    void withdrawalClosesOpenConnections() throws Exception {
+        String uid = UUID.randomUUID().toString();
+        Long userId = userService.signIn(uid, null, "곧탈퇴", java.time.Instant.now());
+        StompSession session = connect(AuthStub.accessToken(uid));
+        // 탈퇴 콜백(LoginController)이 하는 일과 같은 순서
+        userService.withdraw(userId);
+        socketExpiry.closeUser(userId);
+        for (int i = 0; i < 30 && session.isConnected(); i++) {
+            Thread.sleep(100);
+        }
+        assertThat(session.isConnected()).isFalse();
+    }
+
+    @Test
+    @DisplayName("로그아웃하면 다른 탭의 연결도 바로 끊긴다")
+    void logoutClosesOtherTabsConnections() throws Exception {
+        String token = newUserToken();
+        StompSession otherTab = connect(token);
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.COOKIE, "flow_at=" + token);
+        headers.add("X-Requested-With", "flow");
+        rest.exchange(baseUrl + "/api/auth/logout", HttpMethod.POST, new HttpEntity<>(headers), String.class);
+        for (int i = 0; i < 30 && otherTab.isConnected(); i++) {
+            Thread.sleep(100);
+        }
+        assertThat(otherTab.isConnected()).isFalse();
     }
 
     @Test

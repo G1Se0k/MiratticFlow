@@ -1,206 +1,204 @@
 package com.mirattic.flow.user.controller;
 
-import com.mirattic.flow.auth.dto.LoginRequest;
-import com.mirattic.flow.auth.dto.ReissueRequest;
-import com.mirattic.flow.auth.dto.SignupRequest;
+import com.mirattic.flow.auth.service.AuthCookies;
 import com.mirattic.flow.support.ApiTestSupport;
-import com.mirattic.flow.user.dto.UpdateUserRequest;
-import com.mirattic.flow.user.dto.WithdrawRequest;
+import com.mirattic.flow.support.AuthStub;
 import com.mirattic.flow.user.repository.UserRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockHttpServletResponse;
+
+import java.time.Instant;
+import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * 탈퇴는 DB 까지 가봐야 확인되는 동작이다.
  * 단위 테스트는 리포지토리가 대역이라 영속성 컨텍스트가 없고, 실제로 지워졌는지 알 수 없다.
+ * 탈퇴는 Auth 에서 비밀번호를 다시 입력하는 흐름(/auth/start?withdraw=true)으로만 된다.
  */
 class UserApiTest extends ApiTestSupport {
 
     @Autowired private UserRepository userRepository;
 
-    private String signupAndLogin(String email) throws Exception {
-        mockMvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                .content(json(new SignupRequest(email, "password123", "탈퇴할사람"))));
-        return field(bodyOf(mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-                .content(json(new LoginRequest(email, "password123"))))), "accessToken");
+    private record Signed(String uid, String token) {}
+
+    private Signed user(String name) throws Exception {
+        String uid = UUID.randomUUID().toString();
+        return new Signed(uid, signIn(uid, uid.substring(0, 8) + "@test.com", name).getCookie(AuthCookies.ACCESS).getValue());
     }
 
     @Test
-    @DisplayName("탈퇴하면 DB 의 개인정보 컬럼이 실제로 비워진다")
+    @DisplayName("탈퇴: 같은 계정이 Auth 에서 방금 다시 로그인하면 DB 의 개인정보가 비워지고, 이 기기의 로그인이 모두 끝난다")
     void withdrawErasesPersonalData() throws Exception {
-        String token = signupAndLogin("bye@test.com");
-        long userId = userIdOf(token);
+        Signed me = user("탈퇴할사람");
+        long userId = userIdOf(me.token());
 
-        authed(delete("/api/users/me").contentType(MediaType.APPLICATION_JSON)
-                .content(json(new WithdrawRequest("password123"))), token)
-                .andExpect(status().isNoContent());
+        MockHttpServletResponse done = withdraw(me.token(), me.uid(), Instant.now());
 
         // 204 만 보고 넘어가면 "응답은 성공인데 지워지지 않는" 경우를 놓친다.
         var user = userRepository.findById(userId).orElseThrow();
+        assertThat(user.getMiratticUid()).isNull();
         assertThat(user.getEmail()).isNull();
-        assertThat(user.getPassword()).isNull();
-        assertThat(user.getProviderId()).isNull();
         assertThat(user.getName()).isEqualTo("탈퇴한 사용자");
         assertThat(user.isWithdrawn()).isTrue();
+        // Auth 의 로그인 세션을 끝내는 폼이 스스로 제출된다 (ID token 은 주소가 아니라 POST 본문으로).
+        assertThat(done.getContentAsString()).contains(AuthStub.issuer() + "/connect/logout")
+                .contains("name=\"id_token_hint\"").contains("value=\"withdraw\"");
+        assertThat(done.getCookie(AuthCookies.ACCESS).getMaxAge()).isZero();
+        assertThat(done.getCookie(AuthCookies.REAUTH).getValue()).isEqualTo("1");
+        // 탈퇴 전에 받은 토큰은 더 이상 이 사용자를 가리키지 않는다.
+        authed(get("/api/users/me"), me.token()).andExpect(status().isUnauthorized());
     }
 
     @Test
-    @DisplayName("탈퇴한 계정으로는 로그인할 수 없고, 같은 이메일로 다시 가입할 수 있다")
-    void withdrawnEmailCanSignupAgain() throws Exception {
-        String token = signupAndLogin("rejoin@test.com");
-        authed(delete("/api/users/me").contentType(MediaType.APPLICATION_JSON)
-                .content(json(new WithdrawRequest("password123"))), token)
-                .andExpect(status().isNoContent());
+    @DisplayName("토큰만으로는 탈퇴할 수 없다 — 예전의 DELETE /api/users/me 는 없다")
+    void noWithdrawalWithoutReauthentication() throws Exception {
+        Signed me = user("그대로");
+        authed(delete("/api/users/me"), me.token()).andExpect(status().is4xxClientError());
+        authed(get("/api/users/me"), me.token()).andExpect(status().isOk());
+    }
 
-        mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content(json(new LoginRequest("rejoin@test.com", "password123"))))
+    @Test
+    @DisplayName("Auth 에서 다른 계정으로 로그인했거나, 탈퇴를 시작하기 전의 로그인이면 탈퇴하지 않는다")
+    void withdrawNeedsTheSameAccountAndAFreshSignIn() throws Exception {
+        Signed me = user("나");
+        assertThat(withdraw(me.token(), UUID.randomUUID().toString(), Instant.now()).getRedirectedUrl())
+                .isEqualTo("/account?withdraw=mismatch");
+        assertThat(withdraw(me.token(), me.uid(), Instant.now().minusSeconds(120)).getRedirectedUrl())
+                .isEqualTo("/account?withdraw=mismatch");
+        authed(get("/api/users/me"), me.token()).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("로그인 쿠키가 없으면 탈퇴 확인을 시작하지 않는다")
+    void withdrawNeedsASignedInBrowser() throws Exception {
+        assertThat(withdraw(null, UUID.randomUUID().toString(), Instant.now()).getRedirectedUrl())
+                .isEqualTo("/account?withdraw=expired");
+    }
+
+    @Test
+    @DisplayName("탈퇴한 뒤 같은 Mirattic 계정으로 다시 로그인하면 새 사용자로 시작한다")
+    void withdrawnAccountStartsOver() throws Exception {
+        Signed first = user("처음");
+        long firstId = userIdOf(first.token());
+        withdraw(first.token(), first.uid(), Instant.now());
+
+        // 탈퇴보다 뒤의 새 로그인으로 다시 온다.
+        var again = callback(mockMvc.perform(get("/auth/start")).andReturn().getResponse(), first.uid(),
+                Instant.now().plusSeconds(5)).getCookie(AuthCookies.ACCESS);
+        long secondId = id(bodyOf(mockMvc.perform(get("/api/users/me").cookie(again))));
+        assertThat(secondId).isNotEqualTo(firstId);
+    }
+
+    @Test
+    @DisplayName("탈퇴 전의 로그인(다른 브라우저의 토큰)은 다시 가입한 새 사용자로 통하지 않는다 — 재발급해도")
+    void loginsFromBeforeWithdrawalDoNotReachTheRejoinedUser() throws Exception {
+        String uid = UUID.randomUUID().toString();
+        MockHttpServletResponse otherBrowser = signIn(uid, null, "다른 브라우저");
+        String oldAccess = otherBrowser.getCookie(AuthCookies.ACCESS).getValue();
+        jakarta.servlet.http.Cookie oldRefresh = otherBrowser.getCookie(AuthCookies.REFRESH);
+
+        String here = signIn(uid, null, "여기").getCookie(AuthCookies.ACCESS).getValue();
+        withdraw(here, uid, Instant.now());
+        // 다시 가입: 새 로그인 (auth_time 이 탈퇴 전의 로그인들보다 뒤)
+        var start = mockMvc.perform(get("/auth/start")).andReturn().getResponse();
+        var query = org.springframework.web.util.UriComponentsBuilder.fromUriString(start.getRedirectedUrl()).build()
+                .getQueryParams();
+        String code = AuthStub.code(uid, null, "다시", java.net.URLDecoder.decode(query.getFirst("code_challenge"),
+                java.nio.charset.StandardCharsets.UTF_8), java.net.URLDecoder.decode(query.getFirst("redirect_uri"),
+                java.nio.charset.StandardCharsets.UTF_8), Instant.now().plusSeconds(5));
+        String rejoined = mockMvc.perform(get("/auth/callback").param("code", code)
+                        .param("state", java.net.URLDecoder.decode(query.getFirst("state"), java.nio.charset.StandardCharsets.UTF_8))
+                        .cookie(start.getCookie("flow_login")))
+                .andReturn().getResponse().getCookie(AuthCookies.ACCESS).getValue();
+        authed(get("/api/users/me"), rejoined).andExpect(status().isOk()).andExpect(jsonPath("$.name").value("다시"));
+
+        // 탈퇴 전 로그인의 access token: 거절
+        authed(get("/api/users/me"), oldAccess).andExpect(status().isUnauthorized());
+        // 그 로그인의 refresh token 으로 재발급받아도 (Auth 는 그 로그인의 auth_time 을 그대로 준다): 거절
+        var renewed = mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .post("/api/auth/refresh").cookie(oldRefresh)
+                        .header(com.mirattic.flow.global.security.CsrfHeaderFilter.HEADER,
+                                com.mirattic.flow.global.security.CsrfHeaderFilter.VALUE))
+                .andExpect(status().isNoContent()).andReturn().getResponse();
+        mockMvc.perform(get("/api/users/me").cookie(renewed.getCookie(AuthCookies.ACCESS)))
                 .andExpect(status().isUnauthorized());
-
-        mockMvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                        .content(json(new SignupRequest("rejoin@test.com", "password123", "다시가입"))))
-                .andExpect(status().isCreated());
     }
 
     @Test
-    @DisplayName("혼자 관리자인 워크스페이스가 있으면 탈퇴가 막힌다")
+    @DisplayName("다른 브라우저에 남은 탈퇴 전의 Auth 로그인 세션으로는 다시 가입할 수 없다 — 비밀번호를 다시 묻는다")
+    void rejoiningThroughAnOldSsoSessionAsksForTheLoginAgain() throws Exception {
+        String uid = UUID.randomUUID().toString();
+        String oldAccess = signIn(uid, null, "예전").getCookie(AuthCookies.ACCESS).getValue();
+        String here = signIn(uid, null, "여기").getCookie(AuthCookies.ACCESS).getValue();
+        withdraw(here, uid, Instant.now());
+
+        // The other browser: no re-auth marker, its Auth session is from before the withdrawal.
+        var start = mockMvc.perform(get("/auth/start")).andReturn().getResponse();
+        assertThat(start.getRedirectedUrl()).doesNotContain("prompt=");
+        var cb = callback(start, uid, Instant.now().minusSeconds(60));
+        assertThat(cb.getRedirectedUrl()).startsWith("/auth/start?fresh=true");
+        assertThat(cb.getCookie(AuthCookies.ACCESS)).isNull();
+
+        // The restart asks Auth for the password again; that login may rejoin.
+        var restart = mockMvc.perform(get(cb.getRedirectedUrl())).andReturn().getResponse();
+        assertThat(restart.getRedirectedUrl()).contains("prompt=login");
+        String rejoined = callback(restart, uid, Instant.now().plusSeconds(5)).getCookie(AuthCookies.ACCESS).getValue();
+        authed(get("/api/users/me"), rejoined).andExpect(status().isOk());
+        authed(get("/api/users/me"), oldAccess).andExpect(status().isUnauthorized());
+    }
+
+    private MockHttpServletResponse callback(MockHttpServletResponse start, String uid, Instant authTime) throws Exception {
+        var query = org.springframework.web.util.UriComponentsBuilder.fromUriString(start.getRedirectedUrl()).build()
+                .getQueryParams();
+        java.util.function.Function<String, String> d = v -> java.net.URLDecoder.decode(v, java.nio.charset.StandardCharsets.UTF_8);
+        String code = AuthStub.code(uid, null, "다시", d.apply(query.getFirst("code_challenge")),
+                d.apply(query.getFirst("redirect_uri")), authTime);
+        return mockMvc.perform(get("/auth/callback").param("code", code).param("state", d.apply(query.getFirst("state")))
+                .cookie(start.getCookie("flow_login"))).andReturn().getResponse();
+    }
+
+    @Test
+    @DisplayName("혼자 관리자인 워크스페이스가 있으면 탈퇴 확인을 시작하지 않는다")
     void withdrawBlockedBySoleOwnedWorkspace() throws Exception {
-        String token = signupAndLogin("owner@test.com");
-        createWorkspace(token);
+        Signed me = user("관리자");
+        createWorkspace(me.token());
 
-        authed(delete("/api/users/me").contentType(MediaType.APPLICATION_JSON)
-                .content(json(new WithdrawRequest("password123"))), token)
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("OWNER_WORKSPACE_EXISTS"));
-
+        assertThat(withdraw(me.token(), me.uid(), Instant.now()).getRedirectedUrl())
+                .isEqualTo("/account?withdraw=blocked");
         // 막혔으면 아무것도 지워지지 않아야 한다.
-        authed(get("/api/users/me"), token).andExpect(status().isOk())
-                .andExpect(jsonPath("$.email").value("owner@test.com"));
+        authed(get("/api/users/me"), me.token()).andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("관리자"));
     }
 
     @Test
-    @DisplayName("비밀번호가 틀리면 탈퇴되지 않는다")
-    void withdrawRequiresPassword() throws Exception {
-        String token = signupAndLogin("wrongpw@test.com");
-
-        authed(delete("/api/users/me").contentType(MediaType.APPLICATION_JSON)
-                .content(json(new WithdrawRequest("not-my-password"))), token)
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("PASSWORD_MISMATCH"));
-
-        authed(get("/api/users/me"), token).andExpect(status().isOk());
-    }
-
-    // ---------------------------------------------------------------- 계정 정보 수정
-
-    @Test
-    @DisplayName("이름은 현재 비밀번호 없이 바꿀 수 있다")
-    void changeNameWithoutPassword() throws Exception {
-        String token = signupAndLogin("rename@test.com");
+    @DisplayName("이름을 바꿀 수 있다")
+    void changeName() throws Exception {
+        String token = newUserToken("원래이름");
 
         authed(patch("/api/users/me").contentType(MediaType.APPLICATION_JSON)
-                .content(json(new UpdateUserRequest("새이름", null, null, null))), token)
+                .content(json(Map.of("name", "바뀐이름"))), token)
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.name").value("새이름"))
-                .andExpect(jsonPath("$.email").value("rename@test.com"));
-
-        assertThat(userRepository.findByEmail("rename@test.com").orElseThrow().getName()).isEqualTo("새이름");
+                .andExpect(jsonPath("$.name").value("바뀐이름"));
     }
 
     @Test
-    @DisplayName("이메일을 바꾸면 새 이메일로 로그인된다")
-    void changeEmail() throws Exception {
-        String token = signupAndLogin("old@test.com");
-
-        authed(patch("/api/users/me").contentType(MediaType.APPLICATION_JSON)
-                .content(json(new UpdateUserRequest(null, "new@test.com", "password123", null))), token)
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.email").value("new@test.com"));
-
-        mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content(json(new LoginRequest("new@test.com", "password123"))))
-                .andExpect(status().isOk());
-        mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content(json(new LoginRequest("old@test.com", "password123"))))
-                .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    @DisplayName("이미 쓰는 이메일로는 바꿀 수 없다")
-    void changeEmailRejectsDuplicate() throws Exception {
-        signupAndLogin("taken@test.com");
-        String token = signupAndLogin("mine@test.com");
-
-        authed(patch("/api/users/me").contentType(MediaType.APPLICATION_JSON)
-                .content(json(new UpdateUserRequest(null, "taken@test.com", "password123", null))), token)
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("EMAIL_DUPLICATED"));
-
-        authed(get("/api/users/me"), token).andExpect(jsonPath("$.email").value("mine@test.com"));
-    }
-
-    @Test
-    @DisplayName("현재 비밀번호가 틀리면 이메일도 비밀번호도 바뀌지 않는다")
-    void changeRequiresCurrentPassword() throws Exception {
-        String token = signupAndLogin("guard@test.com");
-
-        authed(patch("/api/users/me").contentType(MediaType.APPLICATION_JSON)
-                .content(json(new UpdateUserRequest("바뀌면안됨", "hijack@test.com", "wrong-password", null))), token)
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("PASSWORD_MISMATCH"));
-
-        // 이름이 먼저 반영되고 이메일에서 막히는 식으로 반쯤 바뀌어서는 안 된다 (같은 트랜잭션).
-        authed(get("/api/users/me"), token)
-                .andExpect(jsonPath("$.email").value("guard@test.com"))
-                .andExpect(jsonPath("$.name").value("탈퇴할사람"));
-    }
-
-    @Test
-    @DisplayName("비밀번호를 바꾸면 새 비밀번호로만 로그인되고 기존 refresh 토큰은 폐기된다")
-    void changePasswordRevokesSessions() throws Exception {
-        String email = "newpw@test.com";
-        mockMvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                .content(json(new SignupRequest(email, "password123", "비번바꿀사람"))));
-        String loginBody = bodyOf(mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-                .content(json(new LoginRequest(email, "password123")))));
-        String token = field(loginBody, "accessToken");
-        String refreshToken = field(loginBody, "refreshToken");
-
-        authed(patch("/api/users/me").contentType(MediaType.APPLICATION_JSON)
-                .content(json(new UpdateUserRequest(null, null, "password123", "newpassword456"))), token)
-                .andExpect(status().isOk());
-
-        mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content(json(new LoginRequest(email, "newpassword456"))))
-                .andExpect(status().isOk());
-        mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content(json(new LoginRequest(email, "password123"))))
-                .andExpect(status().isUnauthorized());
-
-        // 비밀번호를 바꾼 이유가 유출일 수 있다. 다른 기기에 남은 refresh 로는 재발급되지 않아야 한다.
-        mockMvc.perform(post("/api/auth/reissue").contentType(MediaType.APPLICATION_JSON)
-                        .content(json(new ReissueRequest(refreshToken))))
-                .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    @DisplayName("공백만 있는 이름은 거부한다")
+    @DisplayName("공백뿐인 이름은 거절된다")
     void blankNameRejected() throws Exception {
-        String token = signupAndLogin("blank@test.com");
+        String token = newUserToken();
 
         authed(patch("/api/users/me").contentType(MediaType.APPLICATION_JSON)
-                .content(json(new UpdateUserRequest("   ", null, null, null))), token)
+                .content(json(Map.of("name", "   "))), token)
                 .andExpect(status().isBadRequest());
-
-        authed(get("/api/users/me"), token).andExpect(jsonPath("$.name").value("탈퇴할사람"));
     }
 }

@@ -54,7 +54,7 @@ class TopicServiceTest {
 
         Workspace workspace = Workspace.create("팀", null);
         ReflectionTestUtils.setField(workspace, "id", 1L);
-        creator = User.create("creator@test.com", "encoded", "만든사람");
+        creator = User.create("uid-creator", "creator@test.com", "만든사람", 0L);
         ReflectionTestUtils.setField(creator, "id", CREATOR_ID);
         project = Project.create(workspace, "프로젝트", null, creator);
         ReflectionTestUtils.setField(project, "id", PROJECT_ID);

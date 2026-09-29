@@ -3,8 +3,8 @@ package com.mirattic.flow.global.config;
 import com.mirattic.flow.chat.service.TopicService;
 import com.mirattic.flow.global.exception.BusinessException;
 import com.mirattic.flow.global.response.ErrorCode;
-import com.mirattic.flow.global.security.JwtProvider;
 import com.mirattic.flow.global.security.StompPrincipal;
+import com.mirattic.flow.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.messaging.Message;
@@ -12,17 +12,19 @@ import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.messaging.support.MessageHeaderAccessor;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.stereotype.Component;
 
 /**
  * WebSocket 인증과 권한 검사.
  *
- * 브라우저의 WebSocket API 는 핸드셰이크에 커스텀 헤더를 붙일 수 없어서
- * REST 처럼 Authorization 헤더를 쓸 수 없다. 토큰을 쿼리스트링에 실으면
- * 접근 로그에 그대로 남는다. 그래서 HTTP 핸드셰이크는 익명으로 통과시키고
- * 그 위의 STOMP CONNECT 프레임 헤더로 인증한다.
+ * 브라우저는 access token 을 HttpOnly 쿠키(flow_at)로만 갖고 있어 스크립트가 읽을 수 없다.
+ * 대신 같은 출처의 WebSocket 핸드셰이크에는 쿠키가 붙으므로, WebSocketConfig 가 핸드셰이크에서 쿠키 값을
+ * 세션 속성으로 옮겨 두고 여기 CONNECT 에서 검증한다. 테스트 · 도구는 CONNECT 헤더의 Bearer 토큰을 쓴다.
  *
- * 검증에는 REST 와 같은 JwtProvider 를 쓴다 — 인증 방식이 둘로 갈라지지 않는다.
+ * 검증에는 REST 와 같은 JwtDecoder(Mirattic Auth JWKS)를 쓴다 — 인증 방식이 둘로 갈라지지 않는다.
  */
 @Component
 @RequiredArgsConstructor
@@ -33,7 +35,13 @@ public class StompAuthInterceptor implements ChannelInterceptor {
     private static final String SUBSCRIBE_PREFIX = "/topic/thread/";
     private static final String SEND_PREFIX = "/app/thread/";
 
-    private final JwtProvider jwtProvider;
+    /** 핸드셰이크에서 쿠키의 access token 을 옮겨 두는 세션 속성 이름 (WebSocketConfig). */
+    public static final String TOKEN_ATTRIBUTE = "flow_at";
+
+    private final JwtDecoder jwtDecoder;
+    /** 지연 조회: UserService 를 바로 주입하면 TopicService 와 같은 빈 생성 순환이 생긴다 (아래 설명). */
+    private final ObjectProvider<UserService> userService;
+    private final SocketExpiry socketExpiry;
 
     /**
      * TopicService 를 바로 주입받으면 빈 생성 순환이 생긴다.
@@ -66,11 +74,23 @@ public class StompAuthInterceptor implements ChannelInterceptor {
     private void authenticate(StompHeaderAccessor accessor) {
         String header = accessor.getFirstNativeHeader(HEADER);
         String token = (header != null && header.startsWith(PREFIX)) ? header.substring(PREFIX.length()) : null;
-
-        if (token == null || !jwtProvider.isValid(token)) {
+        if (token == null && accessor.getSessionAttributes() != null
+                && accessor.getSessionAttributes().get(TOKEN_ATTRIBUTE) instanceof String cookie) {
+            token = cookie;
+        }
+        if (token == null) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
-        accessor.setUser(new StompPrincipal(jwtProvider.getUserId(token)));
+        Jwt jwt;
+        try {
+            jwt = jwtDecoder.decode(token);
+        } catch (JwtException e) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED);
+        }
+        Long userId = userService.getObject().resolve(jwt)
+                .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
+        accessor.setUser(new StompPrincipal(userId));
+        socketExpiry.authenticated(accessor.getSessionId(), userId, jwt.getExpiresAt());
     }
 
     private void requireTopicAccess(StompHeaderAccessor accessor, String prefix) {

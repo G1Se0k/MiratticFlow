@@ -8,15 +8,18 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
+/**
+ * Flow 의 사용자. 로그인 수단(이메일 · 비밀번호 · 카카오 · 네이버)은 Mirattic Auth 가 갖고,
+ * 여기에는 Mirattic UID(miratticUid)와 Flow 에서 쓰는 정보만 둔다.
+ *
+ * id 는 Flow 내부 숫자 키로 그대로 둔다. 이슈 · 댓글 · 채팅이 모두 이 키를 참조하므로
+ * UUID 로 바꾸면 모든 테이블의 외래키가 바뀐다. Auth 와의 연결은 miratticUid 한 칸으로 충분하다.
+ */
 @Getter
 @Entity
 @Table(
         name = "users",
-        uniqueConstraints = {
-                @UniqueConstraint(name = "uk_users_email", columnNames = "email"),
-                // 같은 소셜 계정으로 두 번 가입되지 않도록 DB 레벨에서 막는다.
-                @UniqueConstraint(name = "uk_users_provider", columnNames = {"provider", "provider_id"})
-        })
+        uniqueConstraints = @UniqueConstraint(name = "uk_users_mirattic_uid", columnNames = "mirattic_uid"))
 @NoArgsConstructor(access = AccessLevel.PROTECTED) // JPA 전용. 외부에서는 create() 로만 만든다.
 public class User extends BaseTimeEntity {
 
@@ -24,61 +27,64 @@ public class User extends BaseTimeEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /**
-     * 소셜 로그인은 이메일을 못 받을 수 있어 nullable 이다.
-     * (카카오의 이메일은 선택 동의 항목이라 사용자가 거부하면 내려오지 않는다)
-     */
-    @Column(length = 100)
-    private String email;
+    /** Mirattic Auth 의 `sub`. 탈퇴하면 비워서 같은 계정으로 다시 오면 새 Flow 사용자가 된다. */
+    @Column(length = 36)
+    private String miratticUid;
 
-    /** BCrypt 해시. 소셜 가입자는 비밀번호가 없으므로 null 이다. */
-    private String password;
+    /**
+     * 참여자 목록에 보여주는 연락처 사본. 로그인할 때마다 Auth 의 값으로 갱신한다.
+     * 로그인이나 사용자 식별에는 쓰지 않으므로 유니크가 아니고, 없을 수도 있다 (카카오 이메일은 선택 동의).
+     */
+    @Column(length = 254)
+    private String email;
 
     @Column(nullable = false, length = 50)
     private String name;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private AuthProvider provider;
+    /**
+     * 이 Flow 사용자를 만든 로그인의 시각 (Auth 의 auth_time, epoch 초). 이보다 오래된 로그인의 토큰은 받지 않는다 —
+     * 탈퇴한 뒤 같은 계정으로 다시 오면 새 사용자가 되는데, 탈퇴 전의 로그인(다른 브라우저의 refresh token 등)이
+     * 새 사용자로 통하면 안 된다.
+     */
+    @Column(nullable = false)
+    private long enrolledAuthTime;
 
-    /** 소셜 서비스가 부여한 고유 ID. LOCAL 사용자는 null. */
-    @Column(length = 100)
-    private String providerId;
+    /**
+     * 낙관적 잠금. 로그인(이메일 사본 갱신)과 탈퇴가 같은 행을 동시에 고치면, 먼저 읽고 늦게 쓰는 쪽이 실패한다 —
+     * 탈퇴 전에 읽은 로그인이 탈퇴 뒤에 옛 값(Mirattic UID 등)을 되써서 탈퇴를 되돌리지 못하게.
+     */
+    @Version
+    private long version;
 
     /** 탈퇴 시각. null 이면 정상 회원이다. */
     private LocalDateTime deletedAt;
 
-    private User(String email, String password, String name, AuthProvider provider, String providerId) {
+    private User(String miratticUid, String email, String name, long enrolledAuthTime) {
+        this.miratticUid = miratticUid;
         this.email = email;
-        this.password = password;
         this.name = name;
-        this.provider = provider;
-        this.providerId = providerId;
+        this.enrolledAuthTime = enrolledAuthTime;
     }
 
-    public static User create(String email, String encodedPassword, String name) {
-        return new User(email, encodedPassword, name, AuthProvider.LOCAL, null);
+    /**
+     * Mirattic 계정으로 처음 들어온 사용자. 이름은 Auth 의 이름으로 시작하고 이후 Flow 에서 바꿀 수 있다.
+     * enrolledAuthTime: 그 로그인의 auth_time (epoch 초).
+     */
+    public static User create(String miratticUid, String email, String name, long enrolledAuthTime) {
+        return new User(miratticUid, email, name, enrolledAuthTime);
     }
 
-    public static User createSocial(AuthProvider provider, String providerId, String email, String name) {
-        return new User(email, null, name, provider, providerId);
-    }
-
-    /** 소셜 가입자는 비밀번호가 없어 비밀번호 로그인을 할 수 없다. */
-    public boolean hasPassword() {
-        return password != null;
+    /** 이 토큰(의 로그인)이 이 사용자가 생긴 뒤의 것인가. */
+    public boolean acceptsLoginAt(long authTime) {
+        return authTime >= enrolledAuthTime;
     }
 
     public void changeName(String name) {
         this.name = name;
     }
 
-    public void changeEmail(String email) {
+    public void updateEmail(String email) {
         this.email = email;
-    }
-
-    public void changePassword(String encodedPassword) {
-        this.password = encodedPassword;
     }
 
     /**
@@ -86,13 +92,11 @@ public class User extends BaseTimeEntity {
      *
      * 이 행을 참조하는 이슈 · 댓글 · 채팅이 남아 있어 삭제할 수 없다.
      * 대신 개인정보 컬럼을 실제로 비우므로 "보관 중인데 가려둔" 상태가 아니라 파기한 상태다.
-     * email 과 providerId 가 null 이 되면서 로그인 조회에도 걸리지 않고,
-     * 유니크 제약은 null 을 여럿 허용하므로 같은 이메일로 재가입할 수 있다.
+     * miratticUid 도 비우므로 같은 Mirattic 계정으로 다시 로그인하면 새 사용자로 시작한다.
      */
     public void withdraw() {
+        this.miratticUid = null;
         this.email = null;
-        this.password = null;
-        this.providerId = null;
         this.name = "탈퇴한 사용자";
         this.deletedAt = LocalDateTime.now();
     }

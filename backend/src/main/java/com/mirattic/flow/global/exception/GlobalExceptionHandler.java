@@ -4,9 +4,11 @@ import com.mirattic.flow.global.response.ErrorCode;
 import com.mirattic.flow.global.response.ErrorResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.List;
 
@@ -28,6 +30,14 @@ public class GlobalExceptionHandler {
                 .map(f -> new ErrorResponse.FieldError(f.getField(), f.getDefaultMessage()))
                 .toList();
         return ResponseEntity.badRequest().body(ErrorResponse.of(ErrorCode.INVALID_INPUT, errors));
+    }
+
+    /** 없는 경로 · 허용하지 않는 메서드 같은 스프링의 4xx 는 그 상태 그대로 (전부 500 으로 내리면 서버 장애처럼 보인다). */
+    @ExceptionHandler({HttpRequestMethodNotSupportedException.class, NoResourceFoundException.class})
+    public ResponseEntity<ErrorResponse> handleSpringClientError(Exception e) {
+        int status = ((org.springframework.web.ErrorResponse) e).getStatusCode().value();
+        return ResponseEntity.status(status)
+                .body(new ErrorResponse(status, "INVALID_REQUEST", "지원하지 않는 요청입니다.", List.of()));
     }
 
     @ExceptionHandler(Exception.class)

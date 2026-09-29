@@ -2,16 +2,10 @@
 
 export interface UserResponse {
   id: number;
-  /** 소셜 회원은 이메일을 못 받았을 수 있다. */
+  /** Mirattic 계정의 이메일 사본. 카카오 등에서 이메일 동의를 안 했으면 없다. */
   email: string | null;
   name: string;
-  provider: 'LOCAL' | 'KAKAO' | 'NAVER';
   createdAt: string;
-}
-
-export interface TokenResponse {
-  accessToken: string;
-  refreshToken: string;
 }
 
 /** 백엔드 GlobalExceptionHandler 가 내려주는 통일된 에러 포맷. */

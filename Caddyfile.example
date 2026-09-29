@@ -15,6 +15,10 @@ flow.example.com {
 	handle /ws* {
 		reverse_proxy 127.0.0.1:8080
 	}
+	# Mirattic 계정 로그인 시작 · 콜백 (백엔드가 code 를 토큰으로 바꾸고 로그인 쿠키를 심는다)
+	handle /auth/* {
+		reverse_proxy 127.0.0.1:8080
+	}
 
 	# 나머지는 전부 Next.js
 	handle {

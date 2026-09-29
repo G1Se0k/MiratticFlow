@@ -1,7 +1,6 @@
 package com.mirattic.flow.support;
 
-import com.mirattic.flow.auth.dto.LoginRequest;
-import com.mirattic.flow.auth.dto.SignupRequest;
+import com.mirattic.flow.auth.service.AuthCookies;
 import com.mirattic.flow.project.dto.AddMemberRequest;
 import com.mirattic.flow.project.dto.ProjectRequest;
 import com.mirattic.flow.workspace.dto.WorkspaceRequest;
@@ -9,14 +8,22 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.web.util.UriComponentsBuilder;
 import tools.jackson.databind.ObjectMapper;
 
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -34,6 +41,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
 public abstract class ApiTestSupport {
+
+    @DynamicPropertySource
+    static void auth(DynamicPropertyRegistry registry) {
+        registry.add("app.auth.issuer", AuthStub::issuer);
+    }
 
     @Autowired protected MockMvc mockMvc;
     @Autowired protected ObjectMapper objectMapper;
@@ -67,13 +79,59 @@ public abstract class ApiTestSupport {
         return newUserToken("테스터");
     }
 
-    /** 가입과 로그인을 한 번에. 이메일은 매번 달라야 하므로 UUID 를 섞는다. */
+    /**
+     * Mirattic 계정으로 로그인한 새 사용자의 access token (Bearer 헤더로 쓴다).
+     * 실제 로그인 흐름 그대로: /auth/start → (Auth 로그인: AuthStub) → /auth/callback → flow_at 쿠키.
+     */
     protected String newUserToken(String name) throws Exception {
-        String email = "u" + UUID.randomUUID().toString().substring(0, 8) + "@test.com";
-        mockMvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                .content(json(new SignupRequest(email, "password123", name))));
-        return field(bodyOf(mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-                .content(json(new LoginRequest(email, "password123"))))), "accessToken");
+        String uid = UUID.randomUUID().toString();
+        return signIn(uid, "u" + uid.substring(0, 8) + "@test.com", name).getCookie(AuthCookies.ACCESS).getValue();
+    }
+
+    /** 로그인 흐름을 끝까지 돌리고 콜백의 응답(쿠키 · 리다이렉트)을 돌려준다. */
+    protected MockHttpServletResponse signIn(String uid, String email, String name) throws Exception {
+        return signIn(uid, email, name, null);
+    }
+
+    protected MockHttpServletResponse signIn(String uid, String email, String name, String next) throws Exception {
+        String verifier = UUID.randomUUID() + "-verifier-verifier";
+        MockHttpServletRequestBuilder startRequest = get("/auth/start");
+        if (next != null) {
+            startRequest.param("next", next);
+        }
+        MockHttpServletResponse start = mockMvc.perform(startRequest).andReturn().getResponse();
+        String authorize = start.getRedirectedUrl();
+        var query = UriComponentsBuilder.fromUriString(authorize).build().getQueryParams();
+        // PKCE: 테스트가 Auth 역할을 하므로 Flow 가 만든 challenge 에 code 를 묶는다.
+        String code = AuthStub.code(uid, email, name, decode(query.getFirst("code_challenge")),
+                decode(query.getFirst("redirect_uri")));
+        return mockMvc.perform(get("/auth/callback").param("code", code).param("state", decode(query.getFirst("state")))
+                .cookie(start.getCookie("flow_login"))).andReturn().getResponse();
+    }
+
+    /**
+     * 회원 탈퇴 (Auth 재확인 흐름): /auth/start?withdraw=true (지금 로그인한 쿠키로) → Auth 에서 다시 로그인
+     * (who · authTime) → /auth/callback. 콜백의 응답(탈퇴 성공이면 Auth 로그아웃 폼 페이지, 아니면 /account 로 리다이렉트).
+     */
+    protected MockHttpServletResponse withdraw(String accessToken, String who, Instant authTime) throws Exception {
+        MockHttpServletRequestBuilder startRequest = get("/auth/start").param("withdraw", "true");
+        if (accessToken != null) {
+            startRequest.cookie(new jakarta.servlet.http.Cookie(AuthCookies.ACCESS, accessToken));
+        }
+        MockHttpServletResponse start = mockMvc.perform(startRequest).andReturn().getResponse();
+        if (!start.getRedirectedUrl().startsWith(AuthStub.issuer())) {
+            return start; // 시작 단계에서 막혔다 (/account?withdraw=...)
+        }
+        var query = UriComponentsBuilder.fromUriString(start.getRedirectedUrl()).build().getQueryParams();
+        assertThat(query.getFirst("prompt")).isEqualTo("login");
+        String code = AuthStub.code(who, null, "탈퇴", decode(query.getFirst("code_challenge")),
+                decode(query.getFirst("redirect_uri")), authTime);
+        return mockMvc.perform(get("/auth/callback").param("code", code).param("state", decode(query.getFirst("state")))
+                .cookie(start.getCookie("flow_login"))).andReturn().getResponse();
+    }
+
+    private static String decode(String value) {
+        return value == null ? null : URLDecoder.decode(value, StandardCharsets.UTF_8);
     }
 
     protected long userIdOf(String token) throws Exception {

@@ -27,7 +27,7 @@
 
 ## 기능
 
-- **인증** — 이메일 회원가입 / 로그인, 카카오 · 네이버 소셜 로그인, JWT(Access 15분 + Refresh 14일 rotation)
+- **인증** — Mirattic 계정(Mirattic Sync 와 공유하는 OAuth 2.0 / OIDC 서버) 로그인: 이메일 · 카카오 · 네이버. 토큰은 HttpOnly 쿠키, Access 15분 + Refresh 30일 rotation
 - **워크스페이스** — 생성, 일회용 초대 링크와 상시 참여 코드, OWNER / MEMBER 역할
 - **프로젝트** — 워크스페이스 안의 프로젝트, 참여자 관리, 보관(ARCHIVED)
 - **이슈** — 상태 · 우선순위 · 담당자 · 마감일, 검색 / 필터 / 정렬 / 페이지네이션, 목록에서 상태 즉시 변경
@@ -54,10 +54,13 @@ flowchart TB
     GH["GitHub Actions"]
 
     B -->|"HTTPS 443"| CA
-    CA -->|"/api/* · /ws*"| BE
+    CA -->|"/api/* · /auth/* · /ws*"| BE
     CA -->|"그 외 전부"| FE
     BE --> DB
     GH -.->|"main 푸시 → 재배포"| compose
+    AU["Mirattic Auth<br/>auth.mirattic.com"]
+    B -.->|"로그인 화면"| AU
+    BE -->|"code 교환 · refresh (client secret)<br/>JWKS 로 토큰 검증"| AU
 ```
 
 프런트와 API가 **같은 도메인**을 씁니다. 그래서 운영에는 CORS 설정이 사실상 필요 없고,
@@ -71,16 +74,28 @@ MySQL은 포트를 밖으로 열지 않습니다. 호스트에서 열려 있는 
 
 ## 주요 기술 결정
 
-### 1. WebSocket 인증을 STOMP CONNECT 프레임에서 한다
+### 1. 인증을 Mirattic Auth 에 맡기고, 토큰은 HttpOnly 쿠키에만 둔다
 
-브라우저의 WebSocket API는 **핸드셰이크에 커스텀 헤더를 붙일 수 없습니다.** REST에서 쓰던
-`Authorization: Bearer ...` 를 그대로 쓸 수 없어 세 가지를 놓고 골랐습니다.
+처음에는 Flow 가 가입 · 로그인 · 소셜 로그인 · JWT 발급을 모두 직접 했습니다. 같은 사람이 쓰는 Mirattic Sync 가
+생기면서 계정을 한 곳(Mirattic Auth, OAuth 2.0 + OpenID Connect)으로 모았습니다.
 
-| 방법 | 판단 |
-| --- | --- |
-| 쿼리스트링 `?token=` | 토큰이 접근 로그 · 프록시 로그에 그대로 남는다. 탈락 |
-| 쿠키 | localStorage 기반 구조에 쿠키를 새로 도입해야 한다. 탈락 |
-| **STOMP CONNECT 헤더** | 핸드셰이크는 익명 통과, 그 위 STOMP 레이어에서 인증. **채택** |
+- Flow 백엔드는 **기밀 클라이언트**입니다. `/auth/start` 에서 state · PKCE 를 만들어 Auth 로 보내고,
+  `/auth/callback` 에서 client secret 으로 code 를 토큰으로 바꿉니다. secret 은 서버에만 있습니다.
+- Flow 가 자기 토큰을 새로 발급하지 않고 **Auth 의 access token 을 그대로** 씁니다 (JWKS 로 서명 · iss · aud 검증).
+  Auth 에서 계정을 막거나 비밀번호를 바꾸면 최대 15분 안에 Flow 에도 반영됩니다.
+- 토큰은 **HttpOnly 쿠키**(`flow_at` 15분, `flow_rt` 30일 · `/api/auth` 경로 한정)에만 있습니다.
+  예전처럼 localStorage 에 두면 XSS 한 번에 토큰이 새어 나갑니다.
+- 쿠키 인증은 CSRF 를 부르므로 상태를 바꾸는 요청에 `X-Requested-With: flow` 헤더를 요구합니다.
+  다른 사이트의 폼은 커스텀 헤더를 붙일 수 없고, 다른 출처의 fetch 는 CORS 사전 요청에서 막힙니다.
+- Flow 사용자는 숫자 id 를 그대로 두고 `mirattic_uid` 한 칸으로 Auth 계정과 연결했습니다.
+  모든 테이블의 외래키를 UUID 로 바꾸는 것보다 변경이 훨씬 작습니다.
+
+### 1-1. WebSocket 인증은 핸드셰이크 쿠키 + STOMP CONNECT
+
+브라우저의 WebSocket API는 **핸드셰이크에 커스텀 헤더를 붙일 수 없습니다.** 토큰은 스크립트가 못 읽는
+HttpOnly 쿠키에 있으므로 CONNECT 헤더로 보낼 수도 없습니다. 같은 출처의 핸드셰이크에는 쿠키가 붙으므로,
+핸드셰이크에서 쿠키 값을 세션 속성으로 옮겨 두고 **STOMP CONNECT 프레임에서 REST 와 같은 JwtDecoder 로 검증**합니다.
+(쿼리스트링 `?token=` 은 접근 로그에 토큰이 남아 쓰지 않습니다.)
 
 인증만으로는 부족합니다. 거기서 멈추면 **로그인한 사람 누구나 남의 프로젝트 주제를 구독할 수 있습니다.**
 같은 인터셉터에서 SUBSCRIBE · SEND 프레임의 목적지도 검사합니다 — 목적지는 클라이언트가 보내는 값이라 믿지 않습니다.
@@ -90,8 +105,6 @@ case CONNECT   -> authenticate(accessor);
 case SUBSCRIBE -> requireTopicAccess(accessor, "/topic/thread/");
 case SEND      -> requireTopicAccess(accessor, "/app/thread/");
 ```
-
-검증에는 REST와 **같은 `JwtProvider`** 를 씁니다. 인증 방식이 둘로 갈라지지 않습니다.
 
 ### 2. 권한 검사를 서비스 진입점 한 곳에 모은다
 
@@ -156,7 +169,7 @@ List<StatusCount> countByStatus(@Param("projectId") Long projectId);
 
 ## 트러블슈팅
 
-### 폐기한 Refresh Token이 계속 통했다
+### 폐기한 Refresh Token이 계속 통했다 (Mirattic Auth 이전 전, 자체 JWT 시절)
 
 재발급을 두 번 연속 호출했더니, 첫 번째에서 폐기됐어야 할 토큰으로 두 번째 재발급이 성공했습니다.
 rotation이 동작하지 않았습니다.
@@ -174,15 +187,14 @@ payload가 완전히 같아져 새 토큰이 이전 것과 바이트 단위로 �
 ### 동시 요청이 401을 받으면 로그아웃돼 버린다
 
 화면 진입 시 API를 여러 개 동시에 호출하는데 access token이 만료돼 있으면, 전부 401을 받고
-각자 재발급을 시도합니다. 백엔드가 refresh를 rotation하므로 **첫 번째만 성공합니다.**
+각자 재발급을 시도합니다. refresh token 을 rotation하므로 **첫 번째만 성공합니다.**
 나머지는 이미 폐기된 토큰으로 요청하게 되어 실패하고, 실패 처리가 토큰을 지워 로그아웃됩니다.
 재발급 정책과 클라이언트 동시성이 충돌한 경우입니다.
 
 진행 중인 재발급 Promise 하나를 모듈 스코프에서 공유합니다.
 
 ```ts
-refreshPromise ??= refreshTokens().finally(() => { refreshPromise = null; });
-const refreshed = await refreshPromise;
+refreshPromise ??= fetch('/api/auth/refresh', { method: 'POST', ... }).finally(() => { refreshPromise = null; });
 ```
 
 동시에 몇 개가 401을 받아도 재발급은 한 번만 일어납니다.
@@ -249,17 +261,20 @@ WebSocket 업그레이드는 HTTP/1.1에서만 성립합니다. `--http1.1` 을 
 cp .env.example .env
 docker compose up -d                    # MySQL 8.4
 
-cd backend && ./mvnw spring-boot:run    # http://localhost:8080
+# Mirattic Auth 를 local 프로파일로 띄운다 (Auth 저장소, http://127.0.0.1:9000, dev client secret 내장)
+cd backend && ./mvnw spring-boot:run    # http://127.0.0.1:8080
 
-cd frontend && cp .env.local.example .env.local && npm install && npm run dev   # http://localhost:3000
+cd frontend && cp .env.local.example .env.local && npm install && npm run dev
+# http://127.0.0.1:3000 으로 연다 (localhost 가 아니라). Auth 에 등록된 개발용 redirect 가 127.0.0.1 이고,
+# 로그인 쿠키도 그 호스트에 붙는다. /api · /auth 는 개발 서버가 백엔드로 넘긴다.
 ```
 
 ```bash
-cd backend && ./mvnw test     # 86개
+cd backend && ./mvnw test     # 93개 (Mirattic Auth 는 테스트에서 JDK HTTP 서버 스텁)
 cd frontend && npm run build  # 타입 체크 겸용
 ```
 
-소셜 로그인 키가 없어도 서버는 뜹니다. 해당 버튼만 동작하지 않습니다.
+카카오 · 네이버 로그인은 Mirattic Auth 가 처리합니다 (Flow 에는 소셜 로그인 키가 없습니다).
 
 <details>
 <summary><b>배포</b></summary>
@@ -273,7 +288,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 
 - 배포는 **fast-forward만** 허용하며 서버의 로컬 변경을 강제로 초기화하지 않습니다
 - `.env.prod` 는 서버에만 두고 Git에 올리지 않습니다 (`.env.prod.example` 참고)
-- 운영 프로필은 `JWT_SECRET` 에 **기본값이 없습니다.** 환경변수를 빠뜨리면 기동에 실패합니다 — 약한 키로 조용히 뜨는 것보다 낫습니다
+- 운영 프로필은 `AUTH_CLIENT_SECRET`(Mirattic Auth client `mirattic-flow`)에 **기본값이 없습니다.** 빠뜨리면 기동에 실패합니다
 - Caddy는 호스트에서 공용 서비스로 돌며 `Caddyfile.example` 이 설정 예시입니다. 앱 배포가 Caddy를 재시작하지 않습니다
 - 인증서는 Let's Encrypt에서 자동 발급 · 갱신됩니다
 
