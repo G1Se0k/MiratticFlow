@@ -124,6 +124,7 @@ public class IssueService {
 
     @Transactional
     public IssueResponse create(Long projectId, Long userId, IssueRequest request) {
+        userRepository.lockNamed(userId); // "{이름}님이 ISSUE-n를 등록했습니다." (UserRepository.lockNamed)
         Project project = projectService.requireAccess(projectId, userId);
 
         Issue issue = issueRepository.save(Issue.create(
@@ -147,6 +148,7 @@ public class IssueService {
     /** 수정은 프로젝트 참여자면 누구나 할 수 있다. 협업 도구라 작성자만 고칠 수 있으면 오히려 불편하다. */
     @Transactional
     public IssueResponse update(Long issueId, Long userId, IssueRequest request) {
+        userRepository.lockNamed(userId, request.assigneeId()); // 활동 줄에 나와 새 담당자의 이름이 들어간다
         Issue issue = requireReadable(issueId, userId);
         IssueStatus before = issue.getStatus();
         User previousAssignee = issue.getAssignee();
@@ -174,6 +176,7 @@ public class IssueService {
 
     @Transactional
     public IssueResponse changeStatus(Long issueId, Long userId, IssueStatus status) {
+        userRepository.lockNamed(userId); // "{이름}님이 … 상태를 … 로 변경했습니다."
         Issue issue = requireReadable(issueId, userId);
         if (issue.getStatus() != status) {
             issue.changeStatus(status);

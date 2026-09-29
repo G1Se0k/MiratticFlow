@@ -58,7 +58,8 @@ class ProjectServiceTest {
                 projectRepository, memberRepository, workspaceService,
                 mock(IssueRepository.class), mock(CommentRepository.class),
                 mock(TopicRepository.class), mock(ChatMessageRepository.class),
-                mock(NotificationSender.class), mock(SystemMessageSender.class));
+                mock(NotificationSender.class), mock(SystemMessageSender.class),
+                mock(com.mirattic.flow.user.repository.UserRepository.class));
 
         Workspace workspace = Workspace.create("팀", null);
         ReflectionTestUtils.setField(workspace, "id", WORKSPACE_ID);

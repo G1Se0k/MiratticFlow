@@ -380,6 +380,48 @@ class UserApiTest extends ApiTestSupport {
         }
     }
 
+    @Autowired private org.springframework.transaction.PlatformTransactionManager transactions;
+
+    @Test
+    @DisplayName("탈퇴가 진행 중이면 그 사람의 댓글은 기다렸다가 거절된다 — 탈퇴 뒤에 예전 이름이 든 알림이 새로 생기지 않는다")
+    void aCommentRacingTheWithdrawalWaitsAndIsRefused() throws Exception {
+        String owner = newUserToken("오너");
+        long projectId = setUpProject(owner);
+        Signed leaving = user("곧탈퇴");
+        join(owner, projectId, leaving);
+        long issueId = issue(owner, projectId, "이슈");
+        long leavingId = userIdOf(leaving.token());
+
+        var tx = new org.springframework.transaction.support.TransactionTemplate(transactions);
+        java.util.concurrent.CountDownLatch locked = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.CountDownLatch finish = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        // The withdrawal holds the person's row (as UserService.withdraw does) ...
+        var withdrawal = pool.submit(() -> tx.executeWithoutResult(s -> {
+            userRepository.lockIfNotWithdrawn(leavingId);
+            locked.countDown();
+            try {
+                finish.await();
+            } catch (InterruptedException e) {
+                throw new IllegalStateException(e);
+            }
+            userService.withdraw(leavingId);
+        }));
+        locked.await();
+        // ... so a comment by that person waits instead of writing the old name.
+        var commenting = pool.submit(() -> authed(post("/api/issues/{id}/comments", issueId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(new com.mirattic.flow.comment.dto.CommentRequest("막차"))), leaving.token())
+                .andReturn().getResponse().getStatus());
+        Thread.sleep(500);
+        assertThat(commenting.isDone()).as("the comment waits for the withdrawal").isFalse();
+        finish.countDown();
+        withdrawal.get();
+        assertThat(commenting.get()).isGreaterThanOrEqualTo(400);
+        pool.shutdown();
+        assertThat(texts("select content from notifications where actor_id = ?", leavingId)).isEmpty();
+    }
+
     @Test
     @DisplayName("이름을 바꿀 수 있다")
     void changeName() throws Exception {

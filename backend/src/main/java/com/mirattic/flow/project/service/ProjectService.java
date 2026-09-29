@@ -6,6 +6,7 @@ import com.mirattic.flow.chat.repository.TopicRepository;
 import com.mirattic.flow.notification.entity.NotificationType;
 import com.mirattic.flow.notification.service.NotificationSender;
 import com.mirattic.flow.chat.service.SystemMessageSender;
+import com.mirattic.flow.user.repository.UserRepository;
 import com.mirattic.flow.comment.repository.CommentRepository;
 import com.mirattic.flow.global.exception.BusinessException;
 import com.mirattic.flow.global.response.ErrorCode;
@@ -45,6 +46,7 @@ public class ProjectService {
     private final ChatMessageRepository chatMessageRepository;
     private final NotificationSender notificationSender;
     private final SystemMessageSender systemMessageSender;
+    private final UserRepository userRepository;
 
     // ---------------------------------------------------------------- 권한 검사
     // 워크스페이스와 같은 방식으로 한 곳에 모은다. Phase 5(이슈)·7(채팅)도 requireAccess 를 거친다.
@@ -160,6 +162,7 @@ public class ProjectService {
 
     @Transactional
     public ProjectMemberResponse addMember(Long projectId, Long actorId, Long targetUserId) {
+        userRepository.lockNamed(targetUserId); // "{이름}님이 참여했습니다." (UserRepository.lockNamed)
         Project project = requireManager(projectId, actorId);
 
         // 워크스페이스 밖의 사람을 프로젝트에 끌어올 수는 없다.

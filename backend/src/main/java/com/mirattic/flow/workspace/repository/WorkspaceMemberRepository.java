@@ -31,6 +31,14 @@ public interface WorkspaceMemberRepository extends JpaRepository<WorkspaceMember
      * 이걸로 센다: 잠금 읽기는 방금 커밋된 행까지 보므로, 마지막 관리자 둘이 동시에 빠져도 한쪽은 기다렸다가 한 명만 남은
      * 것을 보고 거절된다. 그냥 count 는 트랜잭션의 스냅샷을 읽어 둘 다 통과할 수 있다 (주인 없는 워크스페이스).
      */
+    /**
+     * 탈퇴할 사람의 멤버십 전부를 잠그고 읽는다. 잠금 읽기라 트랜잭션 스냅샷이 아니라 지금 역할을 본다 — 탈퇴 도중
+     * 관리자로 승격되고 다른 관리자가 나간 경우를 놓치지 않는다. 승격은 이 행을 기다린다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select m from WorkspaceMember m join fetch m.workspace where m.user.id = :userId")
+    List<WorkspaceMember> lockAllByUserId(@Param("userId") Long userId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select m from WorkspaceMember m where m.workspace.id = :workspaceId and m.role = :role")
     List<WorkspaceMember> lockAllByWorkspaceIdAndRole(@Param("workspaceId") Long workspaceId,

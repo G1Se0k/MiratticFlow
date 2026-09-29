@@ -149,8 +149,7 @@ class UserServiceTest {
         Workspace workspace = Workspace.create("워크스페이스", null);
         ReflectionTestUtils.setField(workspace, "id", 10L);
         WorkspaceMember owner = WorkspaceMember.join(workspace, user, WorkspaceRole.OWNER);
-        when(workspaceMemberRepository.findAllByUserIdAndRole(USER_ID, WorkspaceRole.OWNER))
-                .thenReturn(List.of(owner));
+        when(workspaceMemberRepository.lockAllByUserId(USER_ID)).thenReturn(List.of(owner));
         when(workspaceMemberRepository.lockAllByWorkspaceIdAndRole(10L, WorkspaceRole.OWNER)).thenReturn(List.of(owner));
 
         assertThatThrownBy(() -> userService.withdraw(USER_ID))
@@ -166,7 +165,7 @@ class UserServiceTest {
         User user = user();
         Workspace workspace = Workspace.create("워크스페이스", null);
         ReflectionTestUtils.setField(workspace, "id", 10L);
-        when(workspaceMemberRepository.findAllByUserIdAndRole(USER_ID, WorkspaceRole.OWNER))
+        when(workspaceMemberRepository.lockAllByUserId(USER_ID))
                 .thenReturn(List.of(WorkspaceMember.join(workspace, user, WorkspaceRole.OWNER)));
         List<WorkspaceMember> owners = List.of(WorkspaceMember.join(workspace, user, WorkspaceRole.OWNER),
                 WorkspaceMember.join(workspace, User.create("other-uid", "o@test.com", "다른관리자", 0L), WorkspaceRole.OWNER));

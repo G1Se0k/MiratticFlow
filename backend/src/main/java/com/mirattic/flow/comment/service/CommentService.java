@@ -39,6 +39,7 @@ public class CommentService {
 
     @Transactional
     public CommentResponse write(Long issueId, Long userId, CommentRequest request) {
+        userRepository.lockNamed(userId); // 알림 문구에 내 이름이 들어간다 (UserRepository.lockNamed)
         Issue issue = issueService.requireReadable(issueId, userId);
         Comment comment = commentRepository.save(Comment.write(
                 issue,

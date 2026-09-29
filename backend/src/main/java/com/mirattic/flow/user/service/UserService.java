@@ -194,7 +194,10 @@ public class UserService {
      * 워크스페이스를 나갈 때(leave)와 같은 규칙이다 — 주인이 없으면 아무도 그 워크스페이스를 손댈 수 없다.
      */
     private void requireNoSoleOwnedWorkspace(Long userId, boolean lock) {
-        List<Long> owned = workspaceMemberRepository.findAllByUserIdAndRole(userId, WorkspaceRole.OWNER).stream()
+        // 탈퇴는 내 멤버십을 잠금 읽기로 (지금 역할), 미리 보기(canWithdraw)는 그냥 읽는다.
+        List<WorkspaceMember> mine = lock ? workspaceMemberRepository.lockAllByUserId(userId)
+                : workspaceMemberRepository.findAllByUserIdAndRole(userId, WorkspaceRole.OWNER);
+        List<Long> owned = mine.stream().filter(m -> m.getRole() == WorkspaceRole.OWNER)
                 .map(m -> m.getWorkspace().getId()).sorted().toList(); // 같은 순서로 잠가 교착을 피한다
         for (Long workspaceId : owned) {
             // 탈퇴는 잠그고 센다 (WorkspaceMemberRepository.lockAllByWorkspaceIdAndRole). 미리 보기(canWithdraw)는 그냥 센다.
