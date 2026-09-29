@@ -52,6 +52,7 @@ class UserServiceTest {
         // 계정별 잠금 행 (없으면 경계 0 으로 만들어진다). 탈퇴 시각은 이 행에 기록된다.
         fence = new Withdrawal("h", 0L);
         when(withdrawalRepository.lock(any())).thenReturn(fence);
+        when(userRepository.lockIfNotWithdrawn(any())).thenReturn(List.of(USER_ID));
         userService = new UserService(userRepository, workspaceMemberRepository, projectMemberRepository,
                 notificationRepository, mock(ChatMessageRepository.class), issueRepository, withdrawalRepository);
     }

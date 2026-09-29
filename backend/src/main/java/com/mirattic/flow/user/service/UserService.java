@@ -145,11 +145,20 @@ public class UserService {
     public void withdraw(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        if (user.isWithdrawn()) {
+            return;
+        }
 
+        // 잠금 순서: 계정(탈퇴 기록 행) → 사용자 행 → 관리자 자리. Auth 의 삭제 명령(deleteByAuth)과 Flow 의 탈퇴가
+        // 같은 순서로 잡아 서로 막히지 않는다. 기다리는 사이 다른 쪽이 탈퇴시켰으면 할 일이 없다.
+        Withdrawal fence = lockUid(user.getMiratticUid());
+        if (userRepository.lockIfNotWithdrawn(userId).isEmpty()) {
+            return;
+        }
         requireNoSoleOwnedWorkspace(userId, true);
 
-        // 다시 가입할 때의 기준 (탈퇴보다 뒤의 로그인만) — miratticUid 를 비우기 전에 남긴다. 로그인과 같은 잠금.
-        lockUid(user.getMiratticUid()).withdrawnAgain(Instant.now().getEpochSecond());
+        // 다시 가입할 때의 기준 (탈퇴보다 뒤의 로그인만) — miratticUid 를 비우기 전에 남긴다.
+        fence.withdrawnAgain(Instant.now().getEpochSecond());
 
         // 개인정보 파기가 먼저다.
         // 아래 벌크 쿼리들은 clearAutomatically = true 라 실행 후 영속성 컨텍스트를 비운다.

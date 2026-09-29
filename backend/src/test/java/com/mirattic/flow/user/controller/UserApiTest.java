@@ -343,6 +343,43 @@ class UserApiTest extends ApiTestSupport {
         }
     }
 
+    @Autowired private com.mirattic.flow.user.service.UserService userService;
+
+    @Test
+    @DisplayName("Flow 의 탈퇴와 Auth 의 삭제 명령이 동시에 와도 (관리자를 나눠 가진 사람) 막히지 않고 한 번만 탈퇴한다")
+    void flowWithdrawalAndAuthOrderAtOnce() throws Exception {
+        for (int round = 0; round < 5; round++) {
+            Signed me = user("둘다" + round);
+            String partner = newUserToken();
+            long workspaceId = createWorkspace(me.token());
+            authed(post("/api/invites/{code}/accept", inviteCode(me.token(), workspaceId)), partner).andExpect(status().isOk());
+            authed(patch("/api/workspaces/{id}/members/{userId}", workspaceId, userIdOf(partner))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json(new com.mirattic.flow.workspace.dto.RoleRequest(
+                            com.mirattic.flow.workspace.entity.WorkspaceRole.OWNER))), me.token())
+                    .andExpect(status().isOk());
+            long userId = userIdOf(me.token());
+            String order = deletionOrder(me.uid(), AuthStub.CLIENT_ID, "account_deletion");
+
+            java.util.concurrent.CountDownLatch go = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+            var direct = pool.submit(() -> {
+                go.await();
+                userService.withdraw(userId);
+                return null;
+            });
+            var byAuth = pool.submit(() -> {
+                go.await();
+                return deletionOrder(order).andReturn().getResponse().getStatus();
+            });
+            go.countDown();
+            direct.get();
+            assertThat(byAuth.get()).as("round " + round).isEqualTo(204);
+            pool.shutdown();
+            assertThat(userRepository.findById(userId).orElseThrow().isWithdrawn()).isTrue();
+        }
+    }
+
     @Test
     @DisplayName("이름을 바꿀 수 있다")
     void changeName() throws Exception {

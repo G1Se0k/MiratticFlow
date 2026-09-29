@@ -10,9 +10,15 @@ import org.springframework.data.repository.query.Param;
 
 public interface WithdrawalRepository extends JpaRepository<Withdrawal, String> {
 
-    /** 행이 없으면 경계 0(= 제한 없음)으로 만든다. 잠글 행이 늘 있게 (UserService.lockUid). */
+    /**
+     * 행이 없으면 경계 0(= 제한 없음)으로 만든다. 잠글 행이 늘 있게 (UserService.lockUid). 이미 있으면 값은 그대로 두고
+     * 배타 잠금만 잡는다 — INSERT IGNORE 는 중복 키에 공유 잠금을 잡아, 같은 계정의 두 요청이 배타 잠금으로 올리다
+     * 서로 막힐(deadlock) 수 있다.
+     */
     @Modifying
-    @Query(value = "insert ignore into withdrawals (mirattic_uid_hash, withdrawn_at) values (:hash, 0)", nativeQuery = true)
+    @Query(value = """
+            insert into withdrawals (mirattic_uid_hash, withdrawn_at) values (:hash, 0)
+            on duplicate key update withdrawn_at = withdrawn_at""", nativeQuery = true)
     void ensureRow(@Param("hash") String hash);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
