@@ -95,8 +95,10 @@ public class StompAuthInterceptor implements ChannelInterceptor {
 
     private void requireTopicAccess(StompHeaderAccessor accessor, String prefix) {
         String destination = accessor.getDestination();
+        // 허용 목록: 우리 주제만 구독·전송할 수 있다. /topic/** 같은 와일드카드 구독이나
+        // 브로커(/topic)로 직접 보내는 SEND 가 권한 검사를 건너뛰지 못하게 한다.
         if (destination == null || !destination.startsWith(prefix)) {
-            return; // 우리가 관리하는 목적지가 아니면 관여하지 않는다
+            throw new BusinessException(ErrorCode.TOPIC_NOT_FOUND);
         }
         topicServiceProvider.getObject()
                 .requireAccess(parseTopicId(destination, prefix), currentUserId(accessor));

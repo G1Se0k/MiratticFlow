@@ -23,7 +23,6 @@ import com.mirattic.flow.issue.repository.IssueRepository;
 import com.mirattic.flow.notification.entity.NotificationType;
 import com.mirattic.flow.notification.service.NotificationSender;
 import com.mirattic.flow.project.entity.Project;
-import com.mirattic.flow.project.repository.ProjectMemberRepository;
 import com.mirattic.flow.project.service.ProjectService;
 import com.mirattic.flow.user.entity.User;
 import com.mirattic.flow.user.repository.UserRepository;
@@ -51,7 +50,6 @@ public class IssueService {
     private final SystemMessageSender systemMessageSender;
     private final NotificationSender notificationSender;
     private final ProjectService projectService;
-    private final ProjectMemberRepository projectMemberRepository;
     private final UserRepository userRepository;
 
     /** 최근 활동은 스크롤 없이 훑을 수 있는 만큼만. */
@@ -133,7 +131,7 @@ public class IssueService {
                 request.title(),
                 request.description(),
                 request.priority() != null ? request.priority() : IssuePriority.MEDIUM,
-                findAssignee(projectId, request.assigneeId()),
+                findAssignee(project, request.assigneeId()),
                 findUser(userId),
                 request.dueDate()));
 
@@ -156,7 +154,7 @@ public class IssueService {
                 request.description(),
                 request.status() != null ? request.status() : issue.getStatus(),
                 request.priority() != null ? request.priority() : issue.getPriority(),
-                findAssignee(issue.getProject().getId(), request.assigneeId()),
+                findAssignee(issue.getProject(), request.assigneeId()),
                 request.dueDate());
 
         // 제목·설명이 바뀐 것까지 채팅에 흘리면 대화가 묻힌다. 팀이 알아야 할 두 가지만 알린다.
@@ -212,11 +210,12 @@ public class IssueService {
     }
 
     /** 담당자는 그 프로젝트의 참여자여야 한다. 아닌 사람을 지정하면 알림도 채팅도 닿지 않는다. */
-    private User findAssignee(Long projectId, Long assigneeId) {
+    private User findAssignee(Project project, Long assigneeId) {
         if (assigneeId == null) {
             return null;
         }
-        if (!projectMemberRepository.existsByProjectIdAndUserId(projectId, assigneeId)) {
+        // 워크스페이스를 떠난 사람의 참여 기록이 남아 있어도 담당자가 될 수 없다.
+        if (!projectService.isParticipant(project, assigneeId)) {
             throw new BusinessException(ErrorCode.NOT_PROJECT_MEMBER);
         }
         return findUser(assigneeId);

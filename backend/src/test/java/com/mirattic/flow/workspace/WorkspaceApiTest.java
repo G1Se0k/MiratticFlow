@@ -20,6 +20,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /** 권한 검사와 초대 수명 규칙을 실제 DB 제약까지 포함해 확인한다. */
 class WorkspaceApiTest extends ApiTestSupport {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.mirattic.flow.project.repository.ProjectMemberRepository projectMembers;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.mirattic.flow.workspace.repository.WorkspaceMemberRepository workspaceMembers;
+
     // ---------------------------------------------------------------- 헬퍼
 
     /** 새 사용자를 만들고 access token 을 돌려준다. */
@@ -303,6 +308,49 @@ class WorkspaceApiTest extends ApiTestSupport {
 
         authed(get("/api/workspaces/{id}", workspaceId), memberToken)
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("워크스페이스에서 내보낸 사람은 그 안의 프로젝트에도 더 이상 들어갈 수 없다")
+    void removedMemberLosesProjectAccess() throws Exception {
+        String ownerToken = newUserToken();
+        long projectId = setUpProject(ownerToken);
+        String memberToken = addProjectMember(ownerToken, projectId);
+        long workspaceId = workspaceIdOfProject(projectId, ownerToken);
+        authed(get("/api/projects/{id}", projectId), memberToken).andExpect(status().isOk());
+
+        authed(delete("/api/workspaces/{id}/members/{userId}", workspaceId, userIdOf(memberToken)), ownerToken)
+                .andExpect(status().isNoContent());
+
+        authed(get("/api/projects/{id}", projectId), memberToken).andExpect(status().isForbidden());
+        assertThat(projectMembers.existsByProjectIdAndUserId(projectId, userIdOf(memberToken))).isFalse();
+    }
+
+    @Test
+    @DisplayName("워크스페이스를 나간 사람은 그 안의 프로젝트에도 더 이상 들어갈 수 없다")
+    void leavingMemberLosesProjectAccess() throws Exception {
+        String ownerToken = newUserToken();
+        long projectId = setUpProject(ownerToken);
+        String memberToken = addProjectMember(ownerToken, projectId);
+        long workspaceId = workspaceIdOfProject(projectId, ownerToken);
+
+        authed(delete("/api/workspaces/{id}/members/me", workspaceId), memberToken).andExpect(status().isNoContent());
+
+        authed(get("/api/projects/{id}", projectId), memberToken).andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("프로젝트 참여 기록이 남아 있어도 워크스페이스 멤버가 아니면 들어갈 수 없다 (예전 데이터)")
+    void aLeftoverProjectMembershipIsNotEnough() throws Exception {
+        String ownerToken = newUserToken();
+        long projectId = setUpProject(ownerToken);
+        String memberToken = addProjectMember(ownerToken, projectId);
+        long workspaceId = workspaceIdOfProject(projectId, ownerToken);
+        long memberId = userIdOf(memberToken);
+        workspaceMembers.delete(workspaceMembers.findByWorkspaceIdAndUserId(workspaceId, memberId).orElseThrow());
+
+        assertThat(projectMembers.existsByProjectIdAndUserId(projectId, memberId)).isTrue();
+        authed(get("/api/projects/{id}", projectId), memberToken).andExpect(status().isForbidden());
     }
 
     @Test

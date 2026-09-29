@@ -159,6 +159,8 @@ public class WorkspaceService {
             requireAnotherOwnerExists(workspaceId);
         }
         memberRepository.delete(target);
+        // 내보낸 사람의 프로젝트 참여도 함께 지운다 (남겨 두면 프로젝트를 계속 볼 수 있었다).
+        projectMemberRepository.deleteByUserIdAndWorkspaceId(targetUserId, workspaceId);
     }
 
     @Transactional
@@ -168,6 +170,8 @@ public class WorkspaceService {
             requireAnotherOwnerExists(workspaceId);
         }
         memberRepository.delete(member);
+        // 워크스페이스를 떠나면 그 안의 프로젝트 참여도 끝난다 (남겨 두면 프로젝트를 계속 볼 수 있었다).
+        projectMemberRepository.deleteByUserIdAndWorkspaceId(userId, workspaceId);
     }
 
     /** 관리자가 한 명뿐이면 그 자리를 비울 수 없다. 주인 없는 워크스페이스는 아무도 손댈 수 없다. */

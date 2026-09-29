@@ -1,5 +1,6 @@
 package com.mirattic.flow.project.controller;
 
+import com.mirattic.flow.global.config.SocketExpiry;
 import com.mirattic.flow.global.security.AuthUser;
 import com.mirattic.flow.project.dto.AddMemberRequest;
 import com.mirattic.flow.project.dto.ProjectMemberResponse;
@@ -20,6 +21,7 @@ import java.util.List;
 public class ProjectController {
 
     private final ProjectService projectService;
+    private final SocketExpiry socketExpiry;
 
     // ---------------------------------------------------------------- 프로젝트
     // 생성·목록은 워크스페이스에 속하고, 나머지는 프로젝트 id 하나로 찾아간다.
@@ -74,5 +76,7 @@ public class ProjectController {
     public void removeMember(@AuthenticationPrincipal AuthUser authUser, @PathVariable Long projectId,
                              @PathVariable Long userId) {
         projectService.removeMember(projectId, authUser.id(), userId);
+        // 이미 구독 중인 이 프로젝트의 채팅은 권한을 다시 보지 않는다: 연결을 끊어 다시 붙을 때 새로 검사하게 한다.
+        socketExpiry.closeUser(userId);
     }
 }

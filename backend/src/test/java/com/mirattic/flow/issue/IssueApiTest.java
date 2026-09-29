@@ -5,8 +5,10 @@ import com.mirattic.flow.issue.dto.IssueStatusRequest;
 import com.mirattic.flow.issue.entity.IssuePriority;
 import com.mirattic.flow.issue.entity.IssueStatus;
 import com.mirattic.flow.support.ApiTestSupport;
+import com.mirattic.flow.workspace.repository.WorkspaceMemberRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -67,6 +69,21 @@ class IssueApiTest extends ApiTestSupport {
 
         authed(post("/api/projects/{id}/issues", projectId).contentType(MediaType.APPLICATION_JSON)
                 .content(json(new IssueRequest("담당자 지정", null, null, null, outsiderId, null))), ownerToken)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("NOT_PROJECT_MEMBER"));
+    }
+
+    @Test
+    @DisplayName("워크스페이스를 떠난 사람은 참여 기록이 남아 있어도 담당자가 될 수 없다")
+    void formerWorkspaceMemberCannotBeAssigned(@Autowired WorkspaceMemberRepository workspaceMembers) throws Exception {
+        String ownerToken = newUserToken();
+        long projectId = setUpProject(ownerToken);
+        long memberId = userIdOf(addProjectMember(ownerToken, projectId));
+        long workspaceId = workspaceIdOfProject(projectId, ownerToken);
+        workspaceMembers.delete(workspaceMembers.findByWorkspaceIdAndUserId(workspaceId, memberId).orElseThrow());
+
+        authed(post("/api/projects/{id}/issues", projectId).contentType(MediaType.APPLICATION_JSON)
+                .content(json(new IssueRequest("담당자 지정", null, null, null, memberId, null))), ownerToken)
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("NOT_PROJECT_MEMBER"));
     }

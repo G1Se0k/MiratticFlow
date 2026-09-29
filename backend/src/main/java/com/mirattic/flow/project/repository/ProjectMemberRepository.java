@@ -26,7 +26,7 @@ public interface ProjectMemberRepository extends JpaRepository<ProjectMember, Lo
     @Query("select m.project.id, count(m) from ProjectMember m where m.project.id in :projectIds group by m.project.id")
     List<Object[]> countByProjectIds(@Param("projectIds") Collection<Long> projectIds);
 
-    @Modifying(clearAutomatically = true)
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("delete from ProjectMember m where m.user.id = :userId")
     void deleteByUserId(@Param("userId") Long userId);
 
@@ -37,4 +37,9 @@ public interface ProjectMemberRepository extends JpaRepository<ProjectMember, Lo
     @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true)
     @Query("delete from ProjectMember m where m.project.workspace.id = :workspaceId")
     void deleteByWorkspaceId(@Param("workspaceId") Long workspaceId);
+
+    /** 워크스페이스를 떠난 사람은 그 워크스페이스의 프로젝트에서도 빠진다. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from ProjectMember m where m.user.id = :userId and m.project.workspace.id = :workspaceId")
+    void deleteByUserIdAndWorkspaceId(@Param("userId") Long userId, @Param("workspaceId") Long workspaceId);
 }

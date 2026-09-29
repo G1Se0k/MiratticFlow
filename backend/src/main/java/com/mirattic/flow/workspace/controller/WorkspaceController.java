@@ -1,5 +1,6 @@
 package com.mirattic.flow.workspace.controller;
 
+import com.mirattic.flow.global.config.SocketExpiry;
 import com.mirattic.flow.global.security.AuthUser;
 import com.mirattic.flow.workspace.dto.*;
 import com.mirattic.flow.workspace.service.WorkspaceInviteService;
@@ -19,6 +20,7 @@ public class WorkspaceController {
 
     private final WorkspaceService workspaceService;
     private final WorkspaceInviteService inviteService;
+    private final SocketExpiry socketExpiry;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -61,6 +63,8 @@ public class WorkspaceController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void leave(@AuthenticationPrincipal AuthUser authUser, @PathVariable Long workspaceId) {
         workspaceService.leave(workspaceId, authUser.id());
+        // 이미 구독 중인 채팅은 권한을 다시 보지 않는다: 연결을 끊어, 다시 붙을 때 구독 권한을 새로 검사하게 한다.
+        socketExpiry.closeUser(authUser.id());
     }
 
     @PatchMapping("/{workspaceId}/members/{userId}")
@@ -74,6 +78,7 @@ public class WorkspaceController {
     public void removeMember(@AuthenticationPrincipal AuthUser authUser, @PathVariable Long workspaceId,
                              @PathVariable Long userId) {
         workspaceService.removeMember(workspaceId, authUser.id(), userId);
+        socketExpiry.closeUser(userId); // 이미 열린 채팅 구독도 끝낸다 (leave 와 같은 이유)
     }
 
     // ---------------------------------------------------------------- 초대 발급

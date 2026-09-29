@@ -51,11 +51,13 @@ public class ProjectService {
 
     /**
      * 프로젝트를 볼 수 있는가.
-     * 참여자이거나, 워크스페이스 관리자다 — 관리자는 삭제까지 할 수 있으므로 열람을 막을 이유가 없다.
+     * 지금 그 워크스페이스의 멤버이면서 참여자이거나, 워크스페이스 관리자다 — 관리자는 삭제까지 할 수 있으므로
+     * 열람을 막을 이유가 없다. 워크스페이스 멤버십도 보는 이유: 워크스페이스를 떠난 사람의 참여 기록이 남아 있어도
+     * (예전 데이터) 들어오지 못하게.
      */
     public Project requireAccess(Long projectId, Long userId) {
         Project project = findProject(projectId);
-        if (memberRepository.existsByProjectIdAndUserId(projectId, userId)) {
+        if (isParticipant(project, userId)) {
             return project;
         }
         if (!workspaceService.isOwner(project.getWorkspace().getId(), userId)) {
@@ -63,6 +65,12 @@ public class ProjectService {
             throw new BusinessException(ErrorCode.NOT_PROJECT_MEMBER);
         }
         return project;
+    }
+
+    /** 참여 기록이 있고, 지금도 그 워크스페이스 멤버인 사람. */
+    public boolean isParticipant(Project project, Long userId) {
+        return memberRepository.existsByProjectIdAndUserId(project.getId(), userId)
+                && workspaceService.isMember(project.getWorkspace().getId(), userId);
     }
 
     /** 수정·삭제·참여자 관리. 만든 사람이거나 워크스페이스 관리자. */

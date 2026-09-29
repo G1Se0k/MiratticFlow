@@ -211,6 +211,36 @@ class ChatStompTest {
     }
 
     @Test
+    @DisplayName("프로젝트에서 내보내면 그 사람의 열린 채팅 연결이 끊긴다 (다시 붙을 때 구독 권한을 새로 검사)")
+    void removedProjectMemberLosesTheOpenSubscription() throws Exception {
+        String ownerToken = newUserToken();
+        long workspaceId = id(post("/api/workspaces", new WorkspaceRequest("팀", null), ownerToken));
+        long projectId = id(post("/api/workspaces/" + workspaceId + "/projects",
+                new ProjectRequest("프로젝트", null, null), ownerToken));
+        long topicId = id(get("/api/projects/" + projectId + "/chat", ownerToken));
+
+        String memberToken = newUserToken();
+        String code = objectMapper.readTree(get("/api/workspaces/" + workspaceId + "/invite-code", ownerToken))
+                .get("code").asString();
+        post("/api/invites/" + code + "/accept", null, memberToken);
+        long memberId = id(get("/api/users/me", memberToken));
+        post("/api/projects/" + projectId + "/members", java.util.Map.of("userId", memberId), ownerToken);
+
+        StompSession session = connect(memberToken);
+        subscribe(session, topicId);
+        assertThat(session.isConnected()).isTrue();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(ownerToken);
+        rest.exchange(baseUrl + "/api/projects/" + projectId + "/members/" + memberId, HttpMethod.DELETE,
+                new HttpEntity<>(headers), String.class);
+        for (int i = 0; i < 30 && session.isConnected(); i++) {
+            Thread.sleep(100);
+        }
+        assertThat(session.isConnected()).isFalse();
+    }
+
+    @Test
     @DisplayName("유효하지 않은 토큰도 거부된다")
     void connectWithBrokenToken() {
         assertThatThrownBy(() -> connect("not-a-real-token"))
@@ -230,6 +260,25 @@ class ChatStompTest {
         // 구독이 거절되면 서버가 세션을 끊는다
         Thread.sleep(500);
         assertThat(session.isConnected()).isFalse();
+    }
+
+    @Test
+    @DisplayName("와일드카드 구독이나 브로커로 직접 보내는 SEND 로 권한 검사를 건너뛸 수 없다")
+    void brokerDestinationsAreNotOpen() throws Exception {
+        String ownerToken = newUserToken();
+        long topicId = setUpTopic(ownerToken);
+        BlockingQueue<ChatMessageResponse> received = subscribe(connect(ownerToken), topicId);
+        Thread.sleep(300);
+
+        StompSession wildcard = connect(newUserToken());
+        wildcard.subscribe("/topic/**", new StompSessionHandlerAdapter() { });
+        StompSession injector = connect(newUserToken());
+        injector.send("/topic/thread/" + topicId, new SendMessageRequest("가짜 메시지"));
+
+        Thread.sleep(500);
+        assertThat(wildcard.isConnected()).isFalse();
+        assertThat(injector.isConnected()).isFalse();
+        assertThat(received.poll(300, TimeUnit.MILLISECONDS)).isNull();
     }
 
     // ---------------------------------------------------------------- 송수신

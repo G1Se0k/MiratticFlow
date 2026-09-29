@@ -76,6 +76,7 @@ class ProjectServiceTest {
     @DisplayName("프로젝트 참여자는 접근할 수 있다")
     void memberCanAccess() {
         when(memberRepository.existsByProjectIdAndUserId(PROJECT_ID, MEMBER_ID)).thenReturn(true);
+        when(workspaceService.isMember(WORKSPACE_ID, MEMBER_ID)).thenReturn(true);
 
         assertThat(projectService.requireAccess(PROJECT_ID, MEMBER_ID)).isSameAs(project);
     }
@@ -127,6 +128,7 @@ class ProjectServiceTest {
     @DisplayName("참여자여도 관리자가 아니면 requireManager 에서 막힌다")
     void memberIsNotManager() {
         when(memberRepository.existsByProjectIdAndUserId(PROJECT_ID, MEMBER_ID)).thenReturn(true);
+        when(workspaceService.isMember(WORKSPACE_ID, MEMBER_ID)).thenReturn(true);
         when(workspaceService.isOwner(WORKSPACE_ID, MEMBER_ID)).thenReturn(false);
 
         assertThatThrownBy(() -> projectService.requireManager(PROJECT_ID, MEMBER_ID))
