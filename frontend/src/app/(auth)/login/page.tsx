@@ -43,11 +43,6 @@ function Login() {
       >
         Mirattic 계정으로 로그인
       </a>
-      <p className="text-center text-[12px] leading-relaxed text-ink-faint [word-break:keep-all]">
-        이메일 · 카카오 · 네이버로 로그인하거나 가입합니다.
-        <br />
-        Mirattic Sync 와 같은 계정입니다.
-      </p>
     </div>
   );
 }

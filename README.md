@@ -270,7 +270,7 @@ cd frontend && cp .env.local.example .env.local && npm install && npm run dev
 ```
 
 ```bash
-cd backend && ./mvnw test     # 93개 (Mirattic Auth 는 테스트에서 JDK HTTP 서버 스텁)
+cd backend && ./mvnw test     # 108개 (Mirattic Auth 는 테스트에서 JDK HTTP 서버 스텁)
 cd frontend && npm run build  # 타입 체크 겸용
 ```
 
