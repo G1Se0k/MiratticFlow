@@ -1,5 +1,6 @@
 package com.mirattic.flow.user.controller;
 
+import com.mirattic.flow.auth.controller.AccountDeletionController;
 import com.mirattic.flow.auth.service.AuthCookies;
 import com.mirattic.flow.support.ApiTestSupport;
 import com.mirattic.flow.support.AuthStub;
@@ -18,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -179,6 +181,58 @@ class UserApiTest extends ApiTestSupport {
         // 막혔으면 아무것도 지워지지 않아야 한다.
         authed(get("/api/users/me"), me.token()).andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("관리자"));
+    }
+
+    private static String deletionOrder(String uid, String audience, String purpose) {
+        return AuthStub.sign(purpose == null ? Map.of("sub", uid, "aud", audience)
+                : Map.of("sub", uid, "aud", audience, "purpose", purpose));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions deletionOrder(String token) throws Exception {
+        var request = post(AccountDeletionController.PATH);
+        return mockMvc.perform(token == null ? request : request.header("Authorization", "Bearer " + token));
+    }
+
+    @Test
+    @DisplayName("Mirattic 계정 탈퇴: Auth 의 삭제 명령으로 개인정보를 비우고, 같은 명령이 다시 와도 204 다")
+    void authDeletionOrderErasesTheUser() throws Exception {
+        Signed me = user("계정탈퇴");
+        long userId = userIdOf(me.token());
+
+        deletionOrder(deletionOrder(me.uid(), AuthStub.CLIENT_ID, "account_deletion")).andExpect(status().isNoContent());
+        var user = userRepository.findById(userId).orElseThrow();
+        assertThat(user.getMiratticUid()).isNull();
+        assertThat(user.getEmail()).isNull();
+        assertThat(user.isWithdrawn()).isTrue();
+        authed(get("/api/users/me"), me.token()).andExpect(status().isUnauthorized());
+
+        deletionOrder(deletionOrder(me.uid(), AuthStub.CLIENT_ID, "account_deletion")).andExpect(status().isNoContent());
+        // Flow 를 쓴 적 없는 계정도 204.
+        deletionOrder(deletionOrder(UUID.randomUUID().toString(), AuthStub.CLIENT_ID, "account_deletion"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @DisplayName("삭제 명령만 받는다 — access token · ID token · 다른 서비스의 명령 · 서명 없는 요청은 401")
+    void onlyAuthsDeletionOrderIsAccepted() throws Exception {
+        Signed me = user("남아있음");
+        deletionOrder(me.token()).andExpect(status().isUnauthorized());                       // access token
+        deletionOrder(deletionOrder(me.uid(), AuthStub.CLIENT_ID, null)).andExpect(status().isUnauthorized()); // ID token 모양
+        deletionOrder(deletionOrder(me.uid(), "mirattic-sync", "account_deletion")).andExpect(status().isUnauthorized());
+        deletionOrder("not-a-jwt").andExpect(status().isUnauthorized());
+        deletionOrder((String) null).andExpect(status().isUnauthorized());
+        authed(get("/api/users/me"), me.token()).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("혼자 관리자인 워크스페이스가 있으면 삭제 명령을 409 와 이유로 거절하고 아무것도 지우지 않는다")
+    void deletionOrderRefusedForASoleOwner() throws Exception {
+        Signed me = user("관리자");
+        createWorkspace(me.token());
+        deletionOrder(deletionOrder(me.uid(), AuthStub.CLIENT_ID, "account_deletion"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("혼자 관리자인 워크스페이스")));
+        authed(get("/api/users/me"), me.token()).andExpect(status().isOk());
     }
 
     @Test
