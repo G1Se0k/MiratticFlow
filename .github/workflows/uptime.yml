@@ -1,6 +1,6 @@
 name: Uptime
 
-# Mirattic Auth · Sync · Flow 가 살아 있는지 5분마다 확인한다. 실패하면 이 워크플로가 실패하고,
+# mirattic.com 과 Mirattic Auth · Sync · Flow 가 살아 있는지 5분마다 확인한다. 실패하면 이 워크플로가 실패하고,
 # GitHub 가 실패 알림 메일을 보낸다 (Settings → Notifications → Actions 에서 이메일 켜기).
 # 이 저장소는 공개라 Actions 시간이 무료다. 공개 URL 만 부르므로 비밀값이 없다.
 # GitHub 의 예약 실행은 몇 분씩 늦을 수 있고, 저장소에 60일간 활동이 없으면 멈춘다.
@@ -20,6 +20,7 @@ jobs:
         run: |
           # "주소 기대하는_상태코드". 일시적인 끊김은 20초 간격 3번까지 다시 본다.
           checks=(
+            "https://mirattic.com/ 200"
             "https://auth.mirattic.com/actuator/health 200"
             "https://sync.mirattic.com/actuator/health 200"
             "https://flow.mirattic.com/login 200"
