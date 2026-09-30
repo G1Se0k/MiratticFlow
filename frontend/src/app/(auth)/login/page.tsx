@@ -25,7 +25,7 @@ function Login() {
   const error = searchParams.get('error');
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
       <LogoBlock />
 
       {(searchParams.get('withdraw') === 'success' || searchParams.get('state') === 'withdraw') && (
@@ -39,7 +39,7 @@ function Login() {
       {/* 페이지 이동이다 (fetch 가 아니다). Link 는 클라이언트 라우팅을 하므로 a 를 쓴다. */}
       <a
         href={loginUrl(next)}
-        className="flex h-10 w-full items-center justify-center rounded-md bg-ink text-[14px] font-medium text-canvas transition-opacity hover:opacity-90"
+        className="flex h-12 w-full items-center justify-center rounded-[12px] bg-[#2563eb] text-[16px] font-semibold text-white transition-[background-color,scale] hover:bg-[#1d4ed8] focus-visible:outline-offset-2 active:scale-[0.98]"
       >
         Mirattic 계정으로 로그인
       </a>
