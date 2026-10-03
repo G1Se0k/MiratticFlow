@@ -14,26 +14,53 @@ concurrency:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    # 이미지는 호스트와 같은 아키텍처의 러너에서 그대로 빌드한다 (에뮬레이션 없음). 저장소 변수 DEPLOY_PLATFORM:
+    # 비어 있으면 Mac 호스트의 arm64, linux/amd64 면 Lightsail (Mirattic Auth docs/deployment.md "Host move").
+    # 호스트에서 빌드하지 않는다: Next.js 빌드가 1~2GB 를 써서 4GB 호스트의 서비스를 밀어낼 수 있다.
+    runs-on: ${{ vars.DEPLOY_PLATFORM == 'linux/amd64' && 'ubuntu-latest' || 'ubuntu-24.04-arm' }}
     timeout-minutes: 40
     steps:
-      - name: SSH & docker compose up
+      - uses: actions/checkout@v4
+
+      - name: Build images
+        run: |
+          docker build -t mirattic-flow-backend:${{ github.sha }} backend
+          # NEXT_PUBLIC_* 은 빌드 시점에 번들에 박힌다 (frontend/Dockerfile).
+          docker build -t mirattic-flow-frontend:${{ github.sha }} \
+            --build-arg NEXT_PUBLIC_API_BASE_URL=https://flow.mirattic.com frontend
+          mkdir bundle
+          docker save mirattic-flow-backend:${{ github.sha }} mirattic-flow-frontend:${{ github.sha }} \
+            | gzip > bundle/images.tar.gz
+          cp docker-compose.prod.yml deploy.sh backup.sh bundle/
+
+      # 호스트의 .env.prod 는 그대로 둔다 (덮어쓰기만 하고 지우지 않는다).
+      - name: Upload
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          port: 22
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          # 호스트 키 SHA256 지문. 비어 있으면 확인하지 않는다 (Mac 호스트, 이전과 같음). Lightsail 로 옮길 때 넣는다.
+          fingerprint: ${{ secrets.DEPLOY_HOST_FINGERPRINT }}
+          source: bundle/*
+          target: ${{ secrets.DEPLOY_PATH }}
+          strip_components: 1
+
+      - name: Load & switch
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           port: 22
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          command_timeout: 35m
+          # 호스트 키 SHA256 지문. 비어 있으면 확인하지 않는다 (Mac 호스트, 이전과 같음). Lightsail 로 옮길 때 넣는다.
+          fingerprint: ${{ secrets.DEPLOY_HOST_FINGERPRINT }}
+          command_timeout: 15m
           script: |
             set -eu
             export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
             cd "${{ secrets.DEPLOY_PATH }}"
-            test -f .env.prod
-
-            git fetch origin main
-            git merge --ff-only origin/main
-
-            docker compose -f docker-compose.prod.yml --env-file .env.prod config --quiet
-            docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build --wait --wait-timeout 180
-            docker compose -f docker-compose.prod.yml --env-file .env.prod ps
+            gunzip -c images.tar.gz | docker load
+            rm images.tar.gz
+            sh deploy.sh ${{ github.sha }}

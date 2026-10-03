@@ -1,5 +1,6 @@
 # 운영 배포. 앱과 DB는 Docker, 공용 Caddy는 호스트에서 실행한다.
-#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+# 이미지는 CI 가 만들어 호스트에 올리고 deploy.sh 가 :current 로 바꾼다 (.github/workflows/deploy.yml).
+# 손으로 배포할 때만: docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 #
 # 앱 포트는 호스트 루프백에만 공개한다.
 # 호스트 Caddy가 127.0.0.1:3001 / 127.0.0.1:8080 으로 연결한다.
@@ -24,12 +25,16 @@ services:
       retries: 10
 
   backend:
+    image: mirattic-flow-backend:current
     build: ./backend
+    # 4GB 호스트를 Auth · Sync 와 나눠 쓴다 (평소 약 440MB). 힙은 그 60%, 나머지는 메타스페이스·스레드.
+    mem_limit: 768m
     ports:
       - "127.0.0.1:8080:8080"
     restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: prod
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=60
       DB_HOST: mysql
       DB_NAME: ${DB_NAME}
       DB_USERNAME: root
@@ -42,6 +47,7 @@ services:
         condition: service_healthy
 
   frontend:
+    image: mirattic-flow-frontend:current
     ports:
       - "127.0.0.1:3001:3000"
     build:
