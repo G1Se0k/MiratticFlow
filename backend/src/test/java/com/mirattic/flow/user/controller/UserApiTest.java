@@ -184,6 +184,41 @@ class UserApiTest extends ApiTestSupport {
                 .andExpect(jsonPath("$.name").value("관리자"));
     }
 
+    private static String adminOrder(String audience, String purpose) {
+        return AuthStub.sign(Map.of("sub", UUID.randomUUID().toString(), "aud", audience, "purpose", purpose,
+                "exp", new java.util.Date(System.currentTimeMillis() + 60_000)));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions adminRead(String path, String token) throws Exception {
+        var request = get(com.mirattic.flow.admin.AdminController.PATH + path);
+        return mockMvc.perform(token == null ? request : request.header("Authorization", "Bearer " + token));
+    }
+
+    @Test
+    @DisplayName("관리자 콘솔: Auth 의 admin_read 명령으로만 통계와 사용자 데이터를 읽는다")
+    void theAdminConsoleReadsWithAnAdminOrderOnly() throws Exception {
+        Signed me = user("관리대상");
+        createWorkspace(me.token(), "내 워크스페이스");
+        String order = adminOrder(AuthStub.CLIENT_ID, "admin_read");
+        adminRead("/stats", order).andExpect(status().isOk())
+                .andExpect(jsonPath("$.facts[0][0]").value("Flow 사용자"))
+                .andExpect(jsonPath("$.tables[0].title").value("최근 워크스페이스"));
+        adminRead("/users/" + me.uid(), order).andExpect(status().isOk())
+                .andExpect(jsonPath("$.facts[0][1]").value("관리대상"))
+                .andExpect(jsonPath("$.tables[0].rows[0][1]").value("내 워크스페이스"))
+                .andExpect(jsonPath("$.tables[0].rows[0][2]").value("OWNER"));
+        adminRead("/users/" + UUID.randomUUID(), order).andExpect(jsonPath("$.facts[0][1]").value("없음"));
+
+        // access token · 탈퇴 명령 · 다른 서비스의 명령 · 15분짜리 명령 · 없음: 401. 관리자 명령은 탈퇴 명령이 아니다.
+        for (String token : new String[] {me.token(), adminOrder(AuthStub.CLIENT_ID, "account_deletion"),
+                adminOrder("mirattic-sync", "admin_read"),
+                AuthStub.sign(Map.of("sub", me.uid(), "aud", AuthStub.CLIENT_ID, "purpose", "admin_read")), null}) {
+            adminRead("/stats", token).andExpect(status().isUnauthorized());
+            adminRead("/users/" + me.uid(), token).andExpect(status().isUnauthorized());
+        }
+        deletionOrder(order).andExpect(status().isUnauthorized());
+    }
+
     private static String deletionOrder(String uid, String audience, String purpose) {
         return AuthStub.sign(purpose == null ? Map.of("sub", uid, "aud", audience)
                 : Map.of("sub", uid, "aud", audience, "purpose", purpose));

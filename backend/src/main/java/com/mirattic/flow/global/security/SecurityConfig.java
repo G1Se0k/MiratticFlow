@@ -1,5 +1,6 @@
 package com.mirattic.flow.global.security;
 
+import com.mirattic.flow.admin.AdminController;
 import com.mirattic.flow.auth.controller.AccountDeletionController;
 import com.mirattic.flow.auth.service.AuthCookies;
 import com.mirattic.flow.auth.service.MiratticAuth;
@@ -59,6 +60,8 @@ public class SecurityConfig {
                         .requestMatchers("/ws/**").permitAll()
                         // Auth 의 탈퇴 명령. access token 이 아니라 컨트롤러가 명령 JWT 를 직접 검증한다.
                         .requestMatchers(AccountDeletionController.PATH).permitAll()
+                        // 관리자 콘솔의 읽기 명령도 마찬가지 (AdminController 가 검증).
+                        .requestMatchers(AdminController.PATH + "/**").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth -> oauth
                         .bearerTokenResolver(tokenResolver())
@@ -93,7 +96,7 @@ public class SecurityConfig {
         return request -> {
             String path = request.getRequestURI();
             if (path.startsWith("/api/auth/") || path.startsWith("/auth/") || path.startsWith("/ws")
-                    || path.equals(AccountDeletionController.PATH)) {
+                    || path.equals(AccountDeletionController.PATH) || path.startsWith(AdminController.PATH + "/")) {
                 return null;
             }
             String token = header.resolve(request);
