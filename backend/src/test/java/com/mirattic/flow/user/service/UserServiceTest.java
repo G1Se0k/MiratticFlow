@@ -196,4 +196,22 @@ class UserServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
     }
+
+    @Test
+    @DisplayName("이름은 한글 10자, 영어 20자까지")
+    void nameLimit() {
+        User user = user();
+
+        assertThat(userService.update(USER_ID, new UpdateUserRequest("가나다라마바사아자차")).name()).isEqualTo("가나다라마바사아자차");
+        assertThat(userService.update(USER_ID, new UpdateUserRequest("abcdefghijklmnopqrst")).name()).isEqualTo("abcdefghijklmnopqrst");
+        // 앞뒤 공백(유니코드 공백 포함)은 세지 않는다.
+        assertThat(userService.update(USER_ID, new UpdateUserRequest(" ".repeat(60) + "abcdefghijklmnopqrst\u2003")).name())
+                .isEqualTo("abcdefghijklmnopqrst");
+        for (String tooLong : new String[] {"가나다라마바사아자차카", "abcdefghijklmnopqrstu", "a가나다라마바사아자차", "a".repeat(100)}) {
+            assertThatThrownBy(() -> userService.update(USER_ID, new UpdateUserRequest(tooLong)))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.NAME_TOO_LONG);
+        }
+        assertThat(user.getName()).isEqualTo("abcdefghijklmnopqrst");
+    }
 }

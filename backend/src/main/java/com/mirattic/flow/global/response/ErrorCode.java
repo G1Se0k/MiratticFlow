@@ -9,6 +9,7 @@ public enum ErrorCode {
 
     // 400
     INVALID_INPUT(HttpStatus.BAD_REQUEST, "입력값이 올바르지 않습니다."),
+    NAME_TOO_LONG(HttpStatus.BAD_REQUEST, "이름은 한글 10자, 영어 20자까지입니다."),
     INVITE_INVALID(HttpStatus.BAD_REQUEST, "사용할 수 없는 초대입니다. 만료되었거나 이미 사용된 초대일 수 있습니다."),
     LAST_OWNER(HttpStatus.BAD_REQUEST, "마지막 관리자는 나가거나 제외될 수 없습니다. 다른 멤버를 관리자로 지정해주세요."),
     CANNOT_CHANGE_OWN_ROLE(HttpStatus.BAD_REQUEST, "자신의 역할은 변경할 수 없습니다."),

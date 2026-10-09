@@ -177,7 +177,10 @@ function EditNameModal({ user, onClose }: { user: UserResponse; onClose: () => v
           error={errors.name?.message}
           {...register('name', {
             required: '이름을 입력해주세요.',
-            maxLength: { value: 50, message: '50자 이하로 입력해주세요.' },
+            // 서버와 같은 규칙: 영문 · 숫자 · 기호 1칸, 한글 등 2칸, 20칸까지.
+            validate: (v) =>
+              [...v.trim()].reduce((n, c) => n + (c.codePointAt(0)! < 0x80 ? 1 : 2), 0) <= 20 ||
+              '이름은 한글 10자, 영어 20자까지입니다.',
           })}
         />
 

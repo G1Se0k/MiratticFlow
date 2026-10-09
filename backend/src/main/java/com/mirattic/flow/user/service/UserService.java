@@ -109,15 +109,25 @@ public class UserService {
                 .map(User::getId);
     }
 
+    /** 이름은 20칸까지: 영문 · 숫자 · 기호는 1칸, 한글 등 그 밖의 글자는 2칸 (Mirattic Auth 와 같은 규칙). 기존의 긴 이름은 그대로 둔다. */
+    static final int NAME_UNITS = 20;
+
+    static int nameUnits(String name) {
+        return name.codePoints().map(c -> c < 0x80 ? 1 : 2).sum();
+    }
+
     /** 이름 변경. 이메일 · 비밀번호는 Mirattic 계정의 것이라 여기서 바꾸지 않는다. */
     @Transactional
     public UserResponse update(Long userId, UpdateUserRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         // @Size(min = 1) 은 공백만 있는 이름을 통과시킨다. 화면에 빈 자리로 보이는 이름은 없는 것과 같다.
-        String name = request.name().trim();
+        String name = request.name().strip(); // strip: Auth 와 같이 유니코드 공백도
         if (name.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
+        if (nameUnits(name) > NAME_UNITS) {
+            throw new BusinessException(ErrorCode.NAME_TOO_LONG);
         }
         user.changeName(name);
         return UserResponse.from(user);
