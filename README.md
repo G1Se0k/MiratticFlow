@@ -94,7 +94,7 @@ case SEND      -> requireTopicAccess(accessor, "/app/thread/");
 
 ### 권한 검사는 서비스 입구 한 곳에서
 
-컨트롤러에는 권한 검사 코드가 한 줄도 없습니다. 검사는 도메인을 따라 한 방향으로만 이어집니다.
+워크스페이스, 프로젝트, 이슈 API의 컨트롤러에는 권한 검사 코드가 한 줄도 없습니다(운영자용 관리 API는 따로 검사합니다). 검사는 도메인을 따라 한 방향으로만 이어집니다.
 
 ```
 WorkspaceService.requireMember / requireOwner
