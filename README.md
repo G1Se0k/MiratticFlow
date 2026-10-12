@@ -3,15 +3,15 @@
 팀 협업 · 이슈 관리 서비스. 워크스페이스 안에서 프로젝트와 이슈를 관리하고,
 실시간 채팅과 알림으로 소통합니다.
 
-**🔗 [flow.mirattic.com](https://flow.mirattic.com)** — 홈 서버에 배포되어 있습니다. `main` 에 푸시하면 자동으로 갱신됩니다.
+**🔗 [flow.mirattic.com](https://flow.mirattic.com)** — AWS Lightsail(서울)에 배포되어 있습니다. `main` 에 푸시하면 자동으로 갱신됩니다.
 
 | | |
 | --- | --- |
 | 백엔드 | Java 21 · Spring Boot 4.1 · Spring Data JPA · Spring Security · WebSocket(STOMP) |
 | 프론트엔드 | Next.js 16 · React 19 · TypeScript · Tailwind CSS 4 · TanStack Query |
 | 데이터베이스 | MySQL 8.4 |
-| 인프라 | Docker Compose · Caddy · GitHub Actions |
-| 규모 | 테이블 12개 · REST 엔드포인트 51개 · 백엔드 테스트 86개 |
+| 인프라 | AWS Lightsail · Cloudflare · Docker Compose · Caddy · GitHub Actions |
+| 규모 | 테이블 12개 · REST 엔드포인트 54개 · 백엔드 테스트 125개 |
 
 ---
 
@@ -27,7 +27,7 @@
 
 ## 기능
 
-- **인증** — Mirattic 계정(Mirattic Sync 와 공유하는 OAuth 2.0 / OIDC 서버) 로그인: 이메일 · 카카오 · 네이버. 토큰은 HttpOnly 쿠키, Access 15분 + Refresh 30일 rotation
+- **인증** — Mirattic 계정(Mirattic Sync 와 공유하는 OAuth 2.0 / OIDC 서버) 로그인: 카카오 · 네이버 · Google (운영 기준, 이메일 로그인은 Auth 에서 꺼 둠). 토큰은 HttpOnly 쿠키, Access 15분 + Refresh 30일 rotation
 - **워크스페이스** — 생성, 일회용 초대 링크와 상시 참여 코드, OWNER / MEMBER 역할
 - **프로젝트** — 워크스페이스 안의 프로젝트, 참여자 관리, 보관(ARCHIVED)
 - **이슈** — 상태 · 우선순위 · 담당자 · 마감일, 검색 / 필터 / 정렬 / 페이지네이션, 목록에서 상태 즉시 변경
@@ -42,7 +42,7 @@
 flowchart TB
     B["브라우저<br/>REST + STOMP over WebSocket"]
 
-    subgraph host["홈 서버"]
+    subgraph host["AWS Lightsail"]
         CA["Caddy<br/>TLS 자동 발급 · 리버스 프록시"]
         subgraph compose["docker compose"]
             FE["Next.js 16<br/>standalone :3001"]
@@ -53,11 +53,11 @@ flowchart TB
 
     GH["GitHub Actions"]
 
-    B -->|"HTTPS 443"| CA
+    B -->|"HTTPS 443"| CF["Cloudflare"] --> CA
     CA -->|"/api/* · /auth/* · /ws*"| BE
     CA -->|"그 외 전부"| FE
     BE --> DB
-    GH -.->|"main 푸시 → 재배포"| compose
+    GH -.->|"main 푸시 → 이미지 빌드 → 교체"| compose
     AU["Mirattic Auth<br/>auth.mirattic.com"]
     B -.->|"로그인 화면"| AU
     BE -->|"code 교환 · refresh (client secret)<br/>JWKS 로 토큰 검증"| AU
@@ -66,7 +66,7 @@ flowchart TB
 프런트와 API가 **같은 도메인**을 씁니다. 그래서 운영에는 CORS 설정이 사실상 필요 없고,
 `https://` 페이지에서 WebSocket 주소도 자연스럽게 `wss://` 가 됩니다.
 
-MySQL은 포트를 밖으로 열지 않습니다. 호스트에서 열려 있는 건 Caddy의 80 · 443 둘뿐입니다.
+MySQL은 포트를 밖으로 열지 않습니다. 웹으로 열린 건 Caddy의 80 · 443 둘뿐이고, 그마저 방화벽에서 Cloudflare 대역에만 허용합니다.
 
 데이터 모델은 **[ERD 문서](docs/erd.md)** 에 있습니다.
 
@@ -270,27 +270,25 @@ cd frontend && cp .env.local.example .env.local && npm install && npm run dev
 ```
 
 ```bash
-cd backend && ./mvnw test     # 108개 (Mirattic Auth 는 테스트에서 JDK HTTP 서버 스텁)
+cd backend && ./mvnw test     # 125개 (Mirattic Auth 는 테스트에서 JDK HTTP 서버 스텁)
 cd frontend && npm run build  # 타입 체크 겸용
 ```
 
-카카오 · 네이버 로그인은 Mirattic Auth 가 처리합니다 (Flow 에는 소셜 로그인 키가 없습니다).
+카카오 · 네이버 · Google 로그인은 Mirattic Auth 가 처리합니다 (Flow 에는 소셜 로그인 키가 없습니다).
 
 <details>
 <summary><b>배포</b></summary>
 
-`main` 에 푸시하거나 GitHub Actions의 `Deploy` 를 수동 실행하면
-서버에서 소스를 갱신하고 Docker Compose로 빌드 · 재배포합니다.
+`main` 에 푸시하거나 GitHub Actions의 `Deploy` 를 수동 실행하면 배포됩니다.
 
-```bash
-docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
-```
+1. CI 러너가 호스트와 같은 아키텍처로 백엔드 · 프런트 이미지를 빌드합니다. 호스트에서는 빌드하지 않습니다: Next.js 빌드가 1~2GB 를 써서 4GB 호스트의 다른 서비스를 밀어낼 수 있기 때문입니다
+2. `docker save` 묶음과 `docker-compose.prod.yml` · `deploy.sh` · `backup.sh` 를 SSH로 올립니다. 호스트 키는 Secrets의 지문(`DEPLOY_HOST_FINGERPRINT`, 운영에 설정됨)으로 확인합니다 — 비워 두면 확인을 건너뛰므로 Mac 호스트 시절에만 비워 두었습니다
+3. `deploy.sh` 가 `:current` 태그를 새 이미지로 바꾸고, 스택이 올라오지 않으면 이전 이미지로 되돌립니다. 최근 이미지 5개는 수동 롤백용으로 남깁니다
 
-- 배포는 **fast-forward만** 허용하며 서버의 로컬 변경을 강제로 초기화하지 않습니다
-- `.env.prod` 는 서버에만 두고 Git에 올리지 않습니다 (`.env.prod.example` 참고)
-- 운영 프로필은 `AUTH_CLIENT_SECRET`(Mirattic Auth client `mirattic-flow`)에 **기본값이 없습니다.** 빠뜨리면 기동에 실패합니다
-- Caddy는 호스트에서 공용 서비스로 돌며 `Caddyfile.example` 이 설정 예시입니다. 앱 배포가 Caddy를 재시작하지 않습니다
-- 인증서는 Let's Encrypt에서 자동 발급 · 갱신됩니다
+- 레지스트리가 없습니다. 접속 정보는 전부 GitHub Secrets 에 있어 공개 로그에 남지 않습니다
+- `.env.prod` 는 서버에만 두고 Git에 올리지 않습니다 (`.env.prod.example` 참고). 운영 프로필은 `AUTH_CLIENT_SECRET`(Mirattic Auth client `mirattic-flow`)에 **기본값이 없습니다.** 변수가 없으면 기동에 실패하고, 빈 값이면 로그인이 되지 않으니 반드시 채웁니다
+- 매일 DB 백업(7일 보관)을 배포 때마다 다시 등록하고, 등록에 실패하면 배포도 실패시킵니다
+- 5분마다 가동 확인(`uptime.yml`)을 돌려 Flow · Sync · Auth · mirattic.com 중 하나라도 응답하지 않으면 워크플로가 실패하고, GitHub 실패 알림 메일로 받습니다 (예약 실행은 몇 분 늦을 수 있습니다)
 
 </details>
 
@@ -322,3 +320,14 @@ Phase별 구현 기록(설계 · 결정 이유 · 트러블슈팅 · 검증 · �
 이 README의 기술 결정과 트러블슈팅은 그 기록에서 추린 것입니다.
 
 > 상세 기획은 [기획안.txt](기획안.txt) 참고.
+
+---
+
+## Mirattic
+
+| 저장소 | 설명 |
+| --- | --- |
+| [mirattic-main](https://github.com/G1Se0k/mirattic-main) | 전체 시스템 개요 · mirattic.com |
+| [mirattic-auth](https://github.com/G1Se0k/mirattic-auth) | 중앙 인증 서버 (OAuth 2.0 / OIDC) |
+| [mirattic-sync](https://github.com/G1Se0k/mirattic-sync) | 워치파티 확장 + 서버 |
+| **MiratticFlow** | 팀 협업 · 이슈 관리 (이 저장소) |
